@@ -1,0 +1,57 @@
+[
+  {
+    "id": 1,
+    "prompt": "What is the value of 3x when x = 4?",
+    "choices": {
+      "A": "7",
+      "B": "12",
+      "C": "1",
+      "D": "3"
+    },
+    "answer": "B"
+  },
+  {
+    "id": 2,
+    "prompt": "Which expression is equivalent to 5(x + 3)?",
+    "choices": {
+      "A": "5x + 3",
+      "B": "5x + 15",
+      "C": "x + 8",
+      "D": "5x + 18"
+    },
+    "answer": "B"
+  },
+  {
+    "id": 3,
+    "prompt": "A triangle has side lengths of 3 in., 4 in., and 5 in. What type of triangle is it?",
+    "choices": {
+      "A": "Scalene",
+      "B": "Equilateral",
+      "C": "Right",
+      "D": "Isosceles"
+    },
+    "answer": "C"
+  },
+  {
+    "id": 4,
+    "prompt": "Which number is a solution to the inequality x - 2 > 4?",
+    "choices": {
+      "A": "3",
+      "B": "5",
+      "C": "7",
+      "D": "0"
+    },
+    "answer": "C"
+  },
+  {
+    "id": 5,
+    "prompt": "What is the area of a rectangle that is 7 units wide and 3 units tall?",
+    "choices": {
+      "A": "10",
+      "B": "21",
+      "C": "24",
+      "D": "18"
+    },
+    "answer": "B"
+  }
+]
