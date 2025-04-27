@@ -2,56 +2,121 @@
   {
     "id": 1,
     "prompt": "What is the value of 3x when x = 4?",
-    "choices": {
-      "A": "7",
-      "B": "12",
-      "C": "1",
-      "D": "3"
-    },
+    "choices": {"A": "7", "B": "12", "C": "1", "D": "3"},
     "answer": "B"
   },
   {
     "id": 2,
     "prompt": "Which expression is equivalent to 5(x + 3)?",
-    "choices": {
-      "A": "5x + 3",
-      "B": "5x + 15",
-      "C": "x + 8",
-      "D": "5x + 18"
-    },
+    "choices": {"A": "5x + 3", "B": "5x + 15", "C": "x + 8", "D": "5x + 18"},
     "answer": "B"
   },
   {
     "id": 3,
     "prompt": "A triangle has side lengths of 3 in., 4 in., and 5 in. What type of triangle is it?",
-    "choices": {
-      "A": "Scalene",
-      "B": "Equilateral",
-      "C": "Right",
-      "D": "Isosceles"
-    },
+    "choices": {"A": "Scalene", "B": "Equilateral", "C": "Right", "D": "Isosceles"},
     "answer": "C"
   },
   {
     "id": 4,
     "prompt": "Which number is a solution to the inequality x - 2 > 4?",
-    "choices": {
-      "A": "3",
-      "B": "5",
-      "C": "7",
-      "D": "0"
-    },
+    "choices": {"A": "3", "B": "5", "C": "7", "D": "0"},
     "answer": "C"
   },
   {
     "id": 5,
     "prompt": "What is the area of a rectangle that is 7 units wide and 3 units tall?",
-    "choices": {
-      "A": "10",
-      "B": "21",
-      "C": "24",
-      "D": "18"
-    },
+    "choices": {"A": "10", "B": "21", "C": "24", "D": "18"},
     "answer": "B"
+  },
+  {
+    "id": 6,
+    "prompt": "Simplify: 4x - 2x + 7",
+    "choices": {"A": "6x + 7", "B": "2x + 7", "C": "2x - 7", "D": "2x + 9"},
+    "answer": "B"
+  },
+  {
+    "id": 7,
+    "prompt": "Solve: x/3 = 5",
+    "choices": {"A": "8", "B": "2", "C": "15", "D": "5"},
+    "answer": "C"
+  },
+  {
+    "id": 8,
+    "prompt": "Convert 0.75 to a fraction.",
+    "choices": {"A": "1/4", "B": "3/4", "C": "2/5", "D": "1/2"},
+    "answer": "B"
+  },
+  {
+    "id": 9,
+    "prompt": "Evaluate: 2(3 + 4) - 5",
+    "choices": {"A": "9", "B": "7", "C": "14", "D": "10"},
+    "answer": "A"
+  },
+  {
+    "id": 10,
+    "prompt": "What is 30% of 50?",
+    "choices": {"A": "15", "B": "10", "C": "20", "D": "25"},
+    "answer": "A"
+  },
+  {
+    "id": 11,
+    "prompt": "The perimeter of a square is 36 cm. What is the length of one side?",
+    "choices": {"A": "9", "B": "12", "C": "6", "D": "10"},
+    "answer": "A"
+  },
+  {
+    "id": 12,
+    "prompt": "Find the missing value: 8:4 = x:2",
+    "choices": {"A": "6", "B": "4", "C": "2", "D": "3"},
+    "answer": "B"
+  },
+  {
+    "id": 13,
+    "prompt": "Which of the following is a prime number?",
+    "choices": {"A": "9", "B": "15", "C": "17", "D": "21"},
+    "answer": "C"
+  },
+  {
+    "id": 14,
+    "prompt": "If a = 3 and b = 2, what is the value of a² + b²?",
+    "choices": {"A": "11", "B": "12", "C": "13", "D": "10"},
+    "answer": "C"
+  },
+  {
+    "id": 15,
+    "prompt": "What is the mean of: 4, 8, 6, 10?",
+    "choices": {"A": "8", "B": "6", "C": "7", "D": "9"},
+    "answer": "C"
+  },
+  {
+    "id": 16,
+    "prompt": "If a triangle’s angles are 90°, 60°, and x°, what is x?",
+    "choices": {"A": "60", "B": "30", "C": "45", "D": "25"},
+    "answer": "B"
+  },
+  {
+    "id": 17,
+    "prompt": "Which of the following is a rational number?",
+    "choices": {"A": "π", "B": "√2", "C": "1/2", "D": "√3"},
+    "answer": "C"
+  },
+  {
+    "id": 18,
+    "prompt": "Factor: x² - 9",
+    "choices": {"A": "(x + 3)(x - 3)", "B": "(x - 9)(x + 1)", "C": "(x - 3)²", "D": "(x + 9)(x - 1)"},
+    "answer": "A"
+  },
+  {
+    "id": 19,
+    "prompt": "What is the square root of 81?",
+    "choices": {"A": "7", "B": "8", "C": "9", "D": "6"},
+    "answer": "C"
+  },
+  {
+    "id": 20,
+    "prompt": "Which inequality represents: \"x is greater than or equal to 5\"?",
+    "choices": {"A": "x ≤ 5", "B": "x ≠ 5", "C": "x ≥ 5", "D": "x < 5"},
+    "answer": "C"
   }
 ]

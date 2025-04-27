@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "next.config.js",
+      "use": "@vercel/next"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/"
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_FIREBASE_API_KEY": "@next_public_firebase_api_key",
+    "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN": "@next_public_firebase_auth_domain",
+    "NEXT_PUBLIC_FIREBASE_PROJECT_ID": "@next_public_firebase_project_id",
+    "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET": "@next_public_firebase_storage_bucket",
+    "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "@next_public_firebase_messaging_sender_id",
+    "NEXT_PUBLIC_FIREBASE_APP_ID": "@next_public_firebase_app_id",
+    "NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID": "@next_public_firebase_measurement_id"
+  },
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ],
+  "cache": {
+    "files": [
+      "**/*.js",
+      "**/*.css",
+      "**/*.woff2",
+      "**/*.m4a",
+      "**/*.mp3",
+      "**/*.webp",
+      "**/*.jpg",
+      "**/*.png"
+    ]
+  }
+}
