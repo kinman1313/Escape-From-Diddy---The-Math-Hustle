@@ -1,48 +1,154 @@
 // lib/soundManager.ts
 import { Howl } from 'howler'
 
-const sounds: Record<string, Howl> = {
-  'bad-boy': new Howl({ src: ['/sounds/bad-boy.m4a'] }),
-  'bad-boy-2': new Howl({ src: ['/sounds/bad-boy-2.m4a'] }),
-  'come-on': new Howl({ src: ['/sounds/come-on.m4a'] }),
-  'diddy-party': new Howl({ src: ['/sounds/diddy-party.m4a'] }),
-  'do-wa-diddy': new Howl({ src: ['/sounds/do-wa-diddy.m4a'] }),
-  'every-step': new Howl({ src: ['/sounds/every-step.m4a'] }),
-  'i-like-this': new Howl({ src: ['/sounds/i-like-this.m4a'] }),
-  'talk-to-them': new Howl({ src: ['/sounds/talk-to-them.m4a'] }),
-  'correct': new Howl({ src: ['/sounds/correct.m4a'] }),
-  'wrong': new Howl({ src: ['/sounds/wrong.m4a'] }),
+// Define sound files
+const sounds: Record<string, Howl> = {}
+
+// Cache to prevent duplicate loading
+const loadedSounds: Record<string, boolean> = {}
+
+/**
+ * Initialize sound manager - call this early in app lifecycle
+ * This preloads common sounds to prevent delays
+ */
+export function initSoundManager() {
+  // Preload common sounds
+  registerSound('bad-boy', '/sounds/bad-boy.mp3')
+  registerSound('correct', '/sounds/correct.mp3')
+  registerSound('wrong', '/sounds/wrong.mp3')
+  registerSound('do-wa-diddy', '/sounds/do-wa-diddy.mp3')
+  registerSound('i-like-this', '/sounds/i-like-this.mp3')
+  registerSound('powerup', '/sounds/powerup.mp3')
 }
-// ✅ Dynamically preload all defined sounds
-Object.values(sounds).forEach((sound) => sound.load())
 
-let lastSound: Howl | null = null
-
-export function playSound(name: keyof typeof sounds, onEnd?: () => void) {
-  if (lastSound && lastSound.playing()) {
-    lastSound.stop()
+/**
+ * Register a sound for later use
+ */
+export function registerSound(name: string, path: string) {
+  if (loadedSounds[name]) return
+  
+  try {
+    sounds[name] = new Howl({
+      src: [path],
+      preload: true,
+      volume: 0.7
+    })
+    loadedSounds[name] = true
+    
+    // Force load in background
+    sounds[name].load()
+  } catch (err) {
+    console.error(`Failed to register sound: ${name}`, err)
   }
-  const sound = sounds[name]
-  if (onEnd) sound.once('end', onEnd)
-  sound.play()
-  lastSound = sound
 }
 
-export function playRandomHypeClip() {
-  const keys: (keyof typeof sounds)[] = [
-    'bad-boy', 'come-on', 'talk-to-them', 'i-like-this', 'diddy-party'
-  ]
-  const random = keys[Math.floor(Math.random() * keys.length)]
-  playSound(random)
+/**
+ * Play a sound by name with fallback
+ */
+export function playSound(name: string, fallbackName?: string) {
+  try {
+    // First try to get from cache
+    let sound = sounds[name]
+    
+    // If not cached, create it
+    if (!sound && !loadedSounds[name]) {
+      registerSound(name, `/sounds/${name}.mp3`)
+      sound = sounds[name]
+    }
+    
+    // If sound exists, play it
+    if (sound) {
+      // Stop any previous instance of this sound
+      sound.stop()
+      
+      // Play with error handling - no await here
+      sound.play()
+      return true
+    } 
+    
+    // Try fallback if provided
+    if (fallbackName && fallbackName !== name) {
+      return playSound(fallbackName)
+    }
+    
+    return false
+  } catch (err) {
+    console.error(`Error playing sound: ${name}`, err)
+    
+    // Try fallback if provided
+    if (fallbackName && fallbackName !== name) {
+      return playSound(fallbackName)
+    }
+    
+    return false
+  }
 }
 
-export function playTimeoutClip() {
-  playSound('come-on')
+/**
+ * Play a random sound from a given list
+ */
+export function playRandomSound(options: string[]) {
+  if (!options || options.length === 0) return false
+  
+  const randomIndex = Math.floor(Math.random() * options.length)
+  return playSound(options[randomIndex])
 }
 
-export function playStreakClip() {
-  playSound('i-like-this', () => {
-    console.log('🔥 Streak sound complete – cue reward animation or modal')
-    // Add animation trigger here if desired
-  })
+/**
+ * Stop all currently playing sounds
+ */
+export function stopAllSounds() {
+  try {
+    Object.values(sounds).forEach(sound => {
+      sound.stop()
+    })
+    return true
+  } catch (err) {
+    console.error('Error stopping sounds', err)
+    return false
+  }
+}
+
+/**
+ * Play a sound for a streak milestone
+ */
+export function playStreakSound(streak: number) {
+  if (streak === 3) {
+    return playSound('i-like-this')
+  } else if (streak === 5) {
+    return playSound('bad-boy')
+  } else if (streak === 10) {
+    return playSound('talk-to-them', 'i-like-this')
+  } else {
+    return playRandomSound([
+      'i-like-this',
+      'bad-boy',
+      'talk-to-them'
+    ])
+  }
+}
+
+/**
+ * Initialize the audio context with a user interaction
+ * Call this on first user click to enable audio on iOS/Safari
+ */
+export function initAudioContext() {
+  try {
+    // Create a silent sound and play it to unlock audio
+    const unlockSound = new Howl({
+      src: ['/sounds/silent.mp3'],
+      volume: 0.001
+    })
+    
+    // Don't use await here, just call play
+    unlockSound.play()
+    
+    // Initialize all sounds
+    initSoundManager()
+    
+    return true
+  } catch (err) {
+    console.error('Error initializing audio context', err)
+    return false
+  }
 }

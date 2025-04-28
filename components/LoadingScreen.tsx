@@ -1,32 +1,73 @@
 // components/LoadingScreen.tsx
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
+import styles from '@/styles/LoadingScreen.module.css'
 
 export default function LoadingScreen() {
+  // Only show text after a delay to let image be visible
+  const [showText, setShowText] = useState(false)
+  
+  useEffect(() => {
+    // Wait 3 seconds before showing any text
+    const textTimer = setTimeout(() => {
+      setShowText(true)
+    }, 3000)
+    
+    return () => clearTimeout(textTimer)
+  }, [])
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white">
-      <motion.div
+    <div className={styles.container}>
+      {/* Image container - prominent and center stage */}
+      <motion.div 
+        className={styles.imageContainer}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex flex-col items-center gap-4"
+        transition={{ duration: 1 }}
       >
-        <div className="w-48 h-48 relative">
         <Image
-  src="/loading-diddy.jpg"
-  alt="Diddy Silhouette"
-  fill
-  style={{ objectFit: 'contain' }}
-  priority
-/>
-        </div>
-        <motion.p
-          className="text-lg text-gray-300"
-          animate={{ opacity: [0.3, 1, 0.3] }}
-          transition={{ repeat: Infinity, duration: 2 }}
-        >
-          Diddy is watching... loading up the hustle.
-        </motion.p>
+          src="/loading-diddy.jpg"
+          alt="Diddy Silhouette"
+          fill
+          sizes="(max-width: 768px) 100vw, 50vw"
+          priority
+          className={styles.image}
+        />
       </motion.div>
+      
+      {/* Only show text after delay */}
+      {showText && (
+        <motion.div
+          className={styles.textContainer}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <motion.p
+            className={styles.loadingText}
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ repeat: Infinity, duration: 2 }}
+          >
+            Diddy is watching...
+          </motion.p>
+          
+          <div className={styles.loadingDots}>
+            <motion.span
+              animate={{ y: [0, -5, 0] }}
+              transition={{ repeat: Infinity, duration: 0.8, delay: 0 }}
+            />
+            <motion.span
+              animate={{ y: [0, -5, 0] }}
+              transition={{ repeat: Infinity, duration: 0.8, delay: 0.2 }}
+            />
+            <motion.span
+              animate={{ y: [0, -5, 0] }}
+              transition={{ repeat: Infinity, duration: 0.8, delay: 0.4 }}
+            />
+          </div>
+        </motion.div>
+      )}
     </div>
   )
 }

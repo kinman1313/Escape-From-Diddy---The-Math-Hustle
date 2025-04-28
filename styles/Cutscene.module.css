@@ -1,0 +1,116 @@
+/* styles/Cutscene.module.css */
+
+.container {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--midnight, #030a1c);
+  color: white;
+  z-index: 1000; /* Ensure it's above everything */
+  will-change: opacity; /* Performance optimization for animations */
+  overflow: hidden;
+}
+
+.backgroundPattern {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    radial-gradient(circle at center, rgba(0, 255, 204, 0.15) 0%, rgba(0, 0, 0, 0) 70%),
+    radial-gradient(circle at 30% 70%, rgba(255, 0, 60, 0.1) 0%, rgba(0, 0, 0, 0) 60%);
+  z-index: -1;
+  opacity: 0.7;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  max-width: 600px;
+  position: relative;
+}
+
+.iconContainer {
+  font-size: 5rem;
+  margin-bottom: 1.5rem;
+  filter: drop-shadow(0 0 15px rgba(255, 0, 60, 0.5));
+}
+
+.title {
+  font-size: 4rem;
+  font-weight: bold;
+  margin-bottom: 1.5rem;
+  color: var(--math-green, #00ffcc);
+  text-shadow: 0 0 15px rgba(0, 255, 204, 0.5);
+  position: relative;
+}
+
+.title::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 25%;
+  width: 50%;
+  height: 3px;
+  background: linear-gradient(to right, transparent, var(--math-green, #00ffcc), transparent);
+}
+
+.tagline {
+  font-size: 1.5rem;
+  font-weight: 500;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 0.5rem;
+}
+
+.loadingBar {
+  position: absolute;
+  bottom: -20px;
+  left: 0;
+  height: 4px;
+  background: linear-gradient(to right, var(--math-green, #00ffcc), var(--diddy-danger, #ff003c));
+  border-radius: 2px;
+  box-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
+}
+
+/* For mobile devices */
+@media (max-width: 640px) {
+  .title {
+    font-size: 2.5rem;
+  }
+  
+  .tagline {
+    font-size: 1.25rem;
+  }
+  
+  .iconContainer {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+  }
+}
+
+/* Animation keyframes */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(0.95);
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    text-shadow: 0 0 15px rgba(0, 255, 204, 0.5);
+  }
+  50% {
+    text-shadow: 0 0 25px rgba(0, 255, 204, 0.8);
+  }
+}
