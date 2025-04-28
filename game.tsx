@@ -1,7 +1,4 @@
 // pages/game.tsx
-import '@/styles/globals.css'
-import styles from '@/styles/Game.module.css'
-import originalQuestions from '@/data/questions.json'
 import { useEffect, useState, useContext, useCallback, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -16,7 +13,14 @@ import LoadingScreen from '@/components/LoadingScreen'
 import RewardModal from '@/components/RewardModal'
 import GameTutorial from '@/components/GameTutorial'
 import Cutscene from '@/components/Cutscene'
+import dynamic from 'next/dynamic'
 import { playSound, initAudioContext, playRandomSound, playStreakSound } from '@/lib/soundManager'
+
+// Import questions directly (we'll handle shuffling later)
+import originalQuestions from '@/data/questions.json'
+
+// Dynamically import Confetti to avoid SSR issues
+const Confetti = dynamic(() => import('react-confetti'), { ssr: false })
 
 // Define PlayerData type for better type safety
 type PlayerData = {
@@ -35,9 +39,22 @@ type PlayerData = {
     fiftyFifty?: number;
     repellent?: number;
   };
+  hasSeenTutorial?: boolean;
 }
 
 type PowerupType = 'timeFreeze' | 'fiftyFifty' | 'repellent';
+
+// Define the Question type for better type safety
+type QuestionChoice = {
+  [key: string]: string | number;
+}
+
+type Question = {
+  id: number;
+  prompt: string;
+  choices: QuestionChoice;
+  answer: string;
+}
 
 const avatarMap: Record<string, { icon: string; label: string }> = {
   default: { icon: '🧍', label: 'Default' },
@@ -49,7 +66,7 @@ const avatarMap: Record<string, { icon: string; label: string }> = {
 export default function Game() {
   const { user } = useContext(AuthContext)
   const router = useRouter()
-  const [questions, setQuestions] = useState<any[]>([])
+  const [questions, setQuestions] = useState<Question[]>([])
   const [current, setCurrent] = useState(0)
   const [score, setScore] = useState(0)
   const [highScore, setHighScore] = useState(0)
@@ -75,7 +92,12 @@ export default function Game() {
   const [correctAnswers, setCorrectAnswers] = useState(0)
   const [cutsceneDone, setCutsceneDone] = useState(false)
   const [audioInitialized, setAudioInitialized] = useState(false)
-  const [showCelebration, setShowCelebration] = useState(false)
+  const [windowSize, setWindowSize] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 0,
+    height: typeof window !== 'undefined' ? window.innerHeight : 0
+  })
+  const [shouldShowConfetti, setShouldShowConfetti] = useState(false)
+  const confettiTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Calculate time limit based on difficulty
   const getTimeLimit = useCallback(() => {
@@ -118,28 +140,42 @@ export default function Game() {
     }
   }, [handleFirstInteraction])
 
+  // Update window size for confetti
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      })
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Cleanup confetti timeout
+  useEffect(() => {
+    return () => {
+      if (confettiTimeoutRef.current) {
+        clearTimeout(confettiTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // Redirect if not logged in
   useEffect(() => {
     if (!user) router.push('/login')
   }, [user, router])
 
-  // Hide celebration after timeout
+  // Shuffle questions when component mounts or difficulty changes
   useEffect(() => {
-    if (showCelebration) {
-      const timer = setTimeout(() => {
-        setShowCelebration(false)
-      }, 3000)
-      return () => clearTimeout(timer)
-    }
-  }, [showCelebration])
+    // Create a copy of the original questions to shuffle
+    const shuffled = [...originalQuestions].sort(() => 0.5 - Math.random())
+    setQuestions(shuffled)
+  }, [difficultyLevel])
 
-useEffect(() => {
-  // Shuffle questions based on difficulty level
-  const shuffled = [...originalQuestions].sort(() => 0.5 - Math.random())
-  setQuestions(shuffled)
-}, [difficultyLevel])
-
+  // Update difficulty based on streak
   useEffect(() => {
-    // Increase difficulty based on streak
     if (streak >= 10) {
       setDifficultyLevel(3) // Hard
     } else if (streak >= 5) {
@@ -149,11 +185,13 @@ useEffect(() => {
     }
   }, [streak])
 
+  // Fetch player data from Firestore
   useEffect(() => {
     const fetchPlayerData = async () => {
       if (!user) return
       const ref = doc(db, 'players', user.uid)
       const snap = await getDoc(ref)
+      
       if (snap.exists()) {
         const data = snap.data() as PlayerData
         setPlayerData(data)
@@ -168,25 +206,24 @@ useEffect(() => {
         })
       }
 
-      // Display loading screen for 5 seconds
-setTimeout(() => {
-  setLoading(false);
-  if (snap.exists() && !snap.data().hasSeenTutorial) {
-    setShowTutorial(true);
-    updateDoc(ref, {
-      hasSeenTutorial: true
-    }).then(() => {
-      // Any code that needs to run after update completes
-    }).catch(error => {
-      console.error("Error updating hasSeenTutorial:", error);
-    });
-  }
-}, 5000);
-
+      // Display loading screen for a few seconds to build anticipation
+      setTimeout(() => {
+        setLoading(false)
+        if (snap.exists() && !snap.data().hasSeenTutorial) {
+          setShowTutorial(true)
+          updateDoc(ref, {
+            hasSeenTutorial: true
+          }).catch(error => {
+            console.error("Error updating hasSeenTutorial:", error)
+          })
+        }
+      }, 3000)
     }
+    
     fetchPlayerData()
   }, [user])
 
+  // Clear feedback after timeout
   useEffect(() => {
     if (loading) return
     const timer = setTimeout(() => {
@@ -196,6 +233,7 @@ setTimeout(() => {
     return () => clearTimeout(timer)
   }, [feedback, loading])
 
+  // Handle answer selection
   const handleAnswer = async (option: string | null) => {
     if (locked) return
     setLocked(true)
@@ -228,9 +266,13 @@ setTimeout(() => {
       setProximity(Math.max(0, proximity - 1))
       setCorrectAnswers(prev => prev + 1)
 
-      // Check for streak milestones to show celebration
+      // Check for streak milestones to show confetti
       if (newStreak === 3 || newStreak === 5 || newStreak === 10) {
-        setShowCelebration(true)
+        setShouldShowConfetti(true)
+        // Hide confetti after 3 seconds
+        confettiTimeoutRef.current = setTimeout(() => {
+          setShouldShowConfetti(false)
+        }, 3000)
       }
 
       // Check if this is a new high score
@@ -301,20 +343,23 @@ setTimeout(() => {
     } else {
       // Wrong answer - reset streak and increase proximity
       setStreak(0)
-      setProximity(proximity + 1)
+      const newProximity = proximity + 1
+      setProximity(newProximity)
       
       // Reset streak in database
       await updateDoc(ref, {
-        streak: 0
+        streak: 0,
+        proximity: newProximity
       })
       
       // Check if game is over due to proximity
-      if (proximity + 1 >= 5) {
+      if (newProximity >= 5) {
         setIsGameOver(true)
         // Save final score
         await updateDoc(ref, {
           score: score,
-          highScore: Math.max(score, highScore)
+          highScore: Math.max(score, highScore),
+          proximity: 0 // Reset proximity for next game
         })
       }
     }
@@ -384,7 +429,22 @@ setTimeout(() => {
     }
   }
 
-  // Early returns
+  // Reset the game
+  const resetGame = () => {
+    setIsGameOver(false)
+    setScore(0)
+    setStreak(0)
+    setProximity(0)
+    setCurrent(0)
+    setTotalQuestions(0)
+    setCorrectAnswers(0)
+    
+    // Shuffle questions again
+    const shuffled = [...questions].sort(() => 0.5 - Math.random())
+    setQuestions(shuffled)
+  }
+
+  // Early returns for special states
   if (!user || loading || !playerData) return <LoadingScreen />
   
   // Show tutorial for new players
@@ -412,59 +472,47 @@ setTimeout(() => {
     return (
       <>
         <NavBar />
-        <div className={styles.gameOverContainer}>
-          <h1 className={styles.gameOverTitle}>💥 Busted by Diddy!</h1>
-          <p className={styles.gameOverMessage}>You couldn't outrun the hustle.</p>
+        <div className="min-h-screen flex flex-col items-center justify-center gap-6 text-center p-4 bg-midnight">
+          <h1 className="text-4xl font-bold text-red-500 mb-4">💥 Busted by Diddy!</h1>
+          <p className="text-xl text-white mb-6">You couldn't outrun the hustle.</p>
           
-          <div className={styles.gameOverStats}>
-            <h2 className={styles.statsTitle}>Your Stats</h2>
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>Final Score:</span>
-              <span className={styles.statValue}>{score}</span>
-            </div>
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>High Score:</span>
-              <span className={styles.statValue}>{highScore}</span>
-            </div>
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>Questions Answered:</span>
-              <span className={styles.statValue}>{totalQuestions}</span>
-            </div>
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>Correct Answers:</span>
-              <span className={styles.statValue}>{correctAnswers}</span>
-            </div>
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>Accuracy:</span>
-              <span className={styles.statValue}>
+          <div className="bg-white text-black p-6 rounded-xl w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4 text-mathGreen">Your Stats</h2>
+            <div className="grid grid-cols-2 gap-y-3 text-left">
+              <div className="font-semibold">Final Score:</div>
+              <div className="text-right font-bold">{score}</div>
+              
+              <div className="font-semibold">High Score:</div>
+              <div className="text-right font-bold">{highScore}</div>
+              
+              <div className="font-semibold">Questions Answered:</div>
+              <div className="text-right font-bold">{totalQuestions}</div>
+              
+              <div className="font-semibold">Correct Answers:</div>
+              <div className="text-right font-bold">{correctAnswers}</div>
+              
+              <div className="font-semibold">Accuracy:</div>
+              <div className="text-right font-bold">
                 {totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0}%
-              </span>
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-4 mt-8">
+              <button
+                onClick={() => router.push('/leaderboard')}
+                className="bg-mathGreen text-black px-6 py-3 rounded-lg font-bold hover:scale-105 transition-transform"
+              >
+                View Leaderboard
+              </button>
+              
+              <button
+                onClick={resetGame}
+                className="bg-diddyDanger text-white px-6 py-3 rounded-lg font-bold hover:scale-105 transition-transform"
+              >
+                Try Again
+              </button>
             </div>
           </div>
-          
-          <button
-            onClick={() => router.push('/leaderboard')}
-            className={styles.gameOverButton}
-          >
-            View Leaderboard
-          </button>
-          
-          <button
-            onClick={() => {
-              setIsGameOver(false)
-              setScore(0)
-              setStreak(0)
-              setProximity(0)
-              setCurrent(0)
-              setTotalQuestions(0)
-              setCorrectAnswers(0)
-              const shuffled = [...questions].sort(() => 0.5 - Math.random())
-              setQuestions(shuffled)
-            }}
-            className={styles.gameOverButton}
-          >
-            Try Again
-          </button>
         </div>
       </>
     )
@@ -474,9 +522,9 @@ setTimeout(() => {
   
   // Get the appropriate color class for the timer bar
   const getBarColorClass = () => {
-    if (timeLeft > (timeLimit * 0.6)) return styles.barGreen;
-    if (timeLeft > (timeLimit * 0.3)) return styles.barYellow;
-    return styles.barRed;
+    if (timeLeft > (timeLimit * 0.6)) return "bg-green-500";
+    if (timeLeft > (timeLimit * 0.3)) return "bg-yellow-400";
+    return "bg-red-600";
   };
 
   const avatar = avatarMap[playerData.avatar || 'default']
@@ -486,59 +534,40 @@ setTimeout(() => {
     <>
       <NavBar />
       <div 
-        className={styles.gameContainer} 
+        className="min-h-screen flex flex-col items-center justify-center gap-4 py-4 bg-midnight"
         onClick={handleFirstInteraction}
       >
-        {/* Custom celebration effects for milestones */}
-        {showCelebration && (
-          <div className={styles.celebrationOverlay}>
-            <div className={styles.celebrationEmoji}>
-              {Array.from({ length: 20 }, (_, i) => (
-                <motion.span
-                  key={i}
-                  initial={{ 
-                    opacity: 0,
-                    scale: 0,
-                    x: Math.random() * window.innerWidth - window.innerWidth/2, 
-                    y: Math.random() * window.innerHeight - window.innerHeight/2,
-                    rotate: Math.random() * 360
-                  }}
-                  animate={{ 
-                    opacity: [0, 1, 0],
-                    scale: [0, 1.5, 0],
-                    y: [0, -100 - Math.random() * 200]
-                  }}
-                  transition={{ 
-                    duration: 2 + Math.random(),
-                    delay: Math.random() * 0.5
-                  }}
-                  className={styles.celebrationItem}
-                >
-                  {['🎉', '🎊', '✨', '⭐', '🔥', '🧮', '🧠'][Math.floor(Math.random() * 7)]}
-                </motion.span>
-              ))}
-            </div>
-          </div>
+        {/* Show confetti for milestones */}
+        {shouldShowConfetti && (
+          <Confetti
+            width={windowSize.width}
+            height={windowSize.height}
+            recycle={false}
+            numberOfPieces={200}
+            gravity={0.15}
+            colors={['#00ffcc', '#ff003c', '#030a1c', '#ffffff']}
+          />
         )}
         
         {/* Score and Streak Display */}
-        <div className={styles.scoreContainer}>
-          <span className={styles.scoreIcon}>🧮</span>
-          <span className={styles.scoreValue}>{score}</span>
+        <div className="absolute top-4 right-4 bg-mathGreen text-black px-4 py-2 rounded-full font-bold flex items-center gap-2">
+          <span className="text-xl">🧮</span>
+          <span className="text-lg">{score}</span>
         </div>
         
         {streak > 0 && (
-          <div className={`${styles.streakBadge} ${streak >= 3 ? styles.streakActive : ''}`}>
+          <div className={`absolute top-16 right-4 bg-midnight text-mathGreen px-3 py-1 rounded-full text-sm font-bold
+            ${streak >= 3 ? 'animate-pulse' : ''}`}>
             🔥 Streak: {streak}
           </div>
         )}
         
         {/* Avatar Display */}
-        <div className={styles.avatarContainer}>
-          <div className={styles.avatarIcon}>{avatar.icon}</div>
-          <div className={styles.avatarLabel}>{avatar.label}</div>
+        <div className="bg-white text-black px-4 py-2 rounded-lg flex items-center gap-3 mb-2">
+          <div className="text-3xl">{avatar.icon}</div>
+          <div className="text-sm font-bold">{avatar.label}</div>
           {equippedAccessory && (
-            <div className={styles.accessory}>
+            <div className="ml-2 px-2 py-1 bg-mathGreen text-black text-xs font-semibold rounded">
               {equippedAccessory}
             </div>
           )}
@@ -558,72 +587,81 @@ setTimeout(() => {
         <DiddyMeter level={proximity} />
         
         {/* Powerups */}
-        <div className={styles.powerupsContainer}>
+        <div className="flex gap-3 mb-2">
           <button 
-            className={styles.powerupButton}
+            className={`w-12 h-12 rounded-full flex flex-col items-center justify-center relative
+              ${powerups.timeFreeze > 0 ? 'bg-black border-2 border-mathGreen text-mathGreen' : 'bg-gray-800 text-gray-500'}`}
             onClick={() => usePowerup('timeFreeze')}
             disabled={powerups.timeFreeze <= 0 || isTimerPaused}
           >
-            <span className={styles.powerupIcon}>⏱️</span>
+            <span className="text-xl">⏱️</span>
             {powerups.timeFreeze > 0 && (
-              <span className={styles.powerupCount}>{powerups.timeFreeze}</span>
+              <span className="absolute -top-1 -right-1 bg-midnight text-white w-5 h-5 flex items-center justify-center text-xs font-bold rounded-full border border-mathGreen">
+                {powerups.timeFreeze}
+              </span>
             )}
-            <span className={styles.tooltip}>Freeze Time (5s)</span>
+            <span className="absolute -bottom-6 bg-black text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none">
+              Freeze Time
+            </span>
           </button>
           
           <button 
-            className={styles.powerupButton}
+            className={`w-12 h-12 rounded-full flex flex-col items-center justify-center relative
+              ${powerups.fiftyFifty > 0 ? 'bg-black border-2 border-mathGreen text-mathGreen' : 'bg-gray-800 text-gray-500'}`}
             onClick={() => usePowerup('fiftyFifty')}
             disabled={powerups.fiftyFifty <= 0 || eliminatedChoices.length > 0}
           >
-            <span className={styles.powerupIcon}>½</span>
+            <span className="text-xl">½</span>
             {powerups.fiftyFifty > 0 && (
-              <span className={styles.powerupCount}>{powerups.fiftyFifty}</span>
+              <span className="absolute -top-1 -right-1 bg-midnight text-white w-5 h-5 flex items-center justify-center text-xs font-bold rounded-full border border-mathGreen">
+                {powerups.fiftyFifty}
+              </span>
             )}
-            <span className={styles.tooltip}>50/50</span>
           </button>
           
           <button 
-            className={styles.powerupButton}
+            className={`w-12 h-12 rounded-full flex flex-col items-center justify-center relative
+              ${powerups.repellent > 0 ? 'bg-black border-2 border-mathGreen text-mathGreen' : 'bg-gray-800 text-gray-500'}`}
             onClick={() => usePowerup('repellent')}
             disabled={powerups.repellent <= 0 || proximity === 0}
           >
-            <span className={styles.powerupIcon}>🛡️</span>
+            <span className="text-xl">🛡️</span>
             {powerups.repellent > 0 && (
-              <span className={styles.powerupCount}>{powerups.repellent}</span>
+              <span className="absolute -top-1 -right-1 bg-midnight text-white w-5 h-5 flex items-center justify-center text-xs font-bold rounded-full border border-mathGreen">
+                {powerups.repellent}
+              </span>
             )}
-            <span className={styles.tooltip}>Diddy Repellent</span>
           </button>
         </div>
 
         {/* Timer Bar */}
-        <div className={styles.timerContainer}>
+        <div className="w-full max-w-xl h-2 bg-gray-800 rounded-full overflow-hidden">
           <div
-            className={`${styles.barProgress} ${getBarColorClass()} ${isTimerPaused ? styles.paused : ''}`}
+            className={`h-full ${getBarColorClass()} transition-all duration-300 ease-out
+              ${isTimerPaused ? 'animate-pulse' : ''}`}
             style={{ width: `${percentLeft}%` }}
-          />
+          ></div>
         </div>
 
         {/* Difficulty indicator */}
-        <div className="text-xs text-mathGreen mb-1">
+        <div className="text-xs text-mathGreen">
           Difficulty: {difficultyLevel === 1 ? 'Easy' : difficultyLevel === 2 ? 'Medium' : 'Hard'}
         </div>
 
         {/* Question Card */}
-        <div className={styles.questionCard}>
+        <div className="bg-white text-black p-6 rounded-xl w-full max-w-xl shadow-lg relative">
           {showResult && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              className={`${styles.resultOverlay} ${
-                showResult === 'correct' ? styles.resultCorrect : styles.resultWrong
-              }`}
+              className={`absolute inset-0 flex flex-col items-center justify-center rounded-xl z-10 
+                ${showResult === 'correct' ? 'bg-green-500' : 'bg-red-500'} bg-opacity-90`}
             >
-              <div className={styles.resultIcon}>
+              <div className="text-5xl mb-2">
                 {showResult === 'correct' ? '✅' : '❌'}
               </div>
-              <div className={styles.resultText}>
+              <div className="text-2xl font-bold text-white">
                 {showResult === 'correct' ? 'Correct!' : 'Wrong!'}
               </div>
             </motion.div>
@@ -631,18 +669,18 @@ setTimeout(() => {
 
           {questions.length > 0 && current < questions.length ? (
             <>
-              <h2 className={styles.questionPrompt}>{questions[current]?.prompt}</h2>
-              <div className={styles.choicesGrid}>
+              <h2 className="text-xl font-bold mb-6">{questions[current]?.prompt}</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {questions[current] && Object.entries(questions[current].choices).map(([key, value]) => (
                   <button
                     key={key}
-                    className={styles.choiceButton}
+                    className={`px-4 py-3 bg-mathGreen text-black font-semibold rounded-lg hover:scale-105 transition-transform
+                      ${eliminatedChoices.includes(key) ? 'opacity-30 line-through' : ''}`}
                     onClick={() => handleAnswer(key)}
                     disabled={locked || eliminatedChoices.includes(key)}
-                    style={eliminatedChoices.includes(key) ? { opacity: 0.3, textDecoration: 'line-through' } : {}}
                   >
-                    <span className={styles.choiceKey}>{key}:</span>
-                    <span className={styles.choiceValue}>{String(value)}</span>
+                    <span className="font-bold mr-1">{key}:</span>
+                    <span>{String(value)}</span>
                   </button>
                 ))}
               </div>

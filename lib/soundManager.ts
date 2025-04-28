@@ -7,18 +7,32 @@ const sounds: Record<string, Howl> = {}
 // Cache to prevent duplicate loading
 const loadedSounds: Record<string, boolean> = {}
 
+// Keep track of initialization state
+let isInitialized = false
+let audioContextInitialized = false
+
 /**
  * Initialize sound manager - call this early in app lifecycle
  * This preloads common sounds to prevent delays
  */
 export function initSoundManager() {
-  // Preload common sounds
-  registerSound('bad-boy', '/sounds/bad-boy.mp3')
-  registerSound('correct', '/sounds/correct.mp3')
-  registerSound('wrong', '/sounds/wrong.mp3')
-  registerSound('do-wa-diddy', '/sounds/do-wa-diddy.mp3')
-  registerSound('i-like-this', '/sounds/i-like-this.mp3')
-  registerSound('powerup', '/sounds/powerup.mp3')
+  if (isInitialized) return true // Prevent multiple initializations
+  
+  try {
+    // Preload common sounds
+    registerSound('bad-boy', '/sounds/bad-boy.mp3')
+    registerSound('correct', '/sounds/correct.mp3')
+    registerSound('wrong', '/sounds/wrong.mp3')
+    registerSound('do-wa-diddy', '/sounds/do-wa-diddy.mp3')
+    registerSound('i-like-this', '/sounds/i-like-this.mp3')
+    registerSound('powerup', '/sounds/powerup.mp3')
+    
+    isInitialized = true
+    return true
+  } catch (err) {
+    console.error('Failed to initialize sound manager:', err)
+    return false
+  }
 }
 
 /**
@@ -34,9 +48,6 @@ export function registerSound(name: string, path: string) {
       volume: 0.7
     })
     loadedSounds[name] = true
-    
-    // Force load in background
-    sounds[name].load()
   } catch (err) {
     console.error(`Failed to register sound: ${name}`, err)
   }
@@ -46,6 +57,12 @@ export function registerSound(name: string, path: string) {
  * Play a sound by name with fallback
  */
 export function playSound(name: string, fallbackName?: string) {
+  if (!audioContextInitialized) {
+    // Don't try to play sounds if audio context isn't initialized
+    console.warn('Audio context not initialized. Call initAudioContext first.')
+    return false
+  }
+
   try {
     // First try to get from cache
     let sound = sounds[name]
@@ -61,7 +78,7 @@ export function playSound(name: string, fallbackName?: string) {
       // Stop any previous instance of this sound
       sound.stop()
       
-      // Play with error handling - no await here
+      // Play with error handling
       sound.play()
       return true
     } 
@@ -95,21 +112,6 @@ export function playRandomSound(options: string[]) {
 }
 
 /**
- * Stop all currently playing sounds
- */
-export function stopAllSounds() {
-  try {
-    Object.values(sounds).forEach(sound => {
-      sound.stop()
-    })
-    return true
-  } catch (err) {
-    console.error('Error stopping sounds', err)
-    return false
-  }
-}
-
-/**
  * Play a sound for a streak milestone
  */
 export function playStreakSound(streak: number) {
@@ -123,7 +125,7 @@ export function playStreakSound(streak: number) {
     return playRandomSound([
       'i-like-this',
       'bad-boy',
-      'talk-to-them'
+      'correct'
     ])
   }
 }
@@ -133,22 +135,40 @@ export function playStreakSound(streak: number) {
  * Call this on first user click to enable audio on iOS/Safari
  */
 export function initAudioContext() {
+  if (audioContextInitialized) return true
+  
   try {
-    // Create a silent sound and play it to unlock audio
+    // Create a silent sound and play it to unlock audio on iOS/Safari
     const unlockSound = new Howl({
       src: ['/sounds/silent.mp3'],
-      volume: 0.001
+      volume: 0.001,
+      html5: true
     })
     
-    // Don't use await here, just call play
     unlockSound.play()
     
     // Initialize all sounds
     initSoundManager()
     
+    audioContextInitialized = true
     return true
   } catch (err) {
-    console.error('Error initializing audio context', err)
+    console.error('Error initializing audio context:', err)
+    return false
+  }
+}
+
+/**
+ * Stop all currently playing sounds
+ */
+export function stopAllSounds() {
+  try {
+    Object.values(sounds).forEach(sound => {
+      sound.stop()
+    })
+    return true
+  } catch (err) {
+    console.error('Error stopping sounds', err)
     return false
   }
 }
