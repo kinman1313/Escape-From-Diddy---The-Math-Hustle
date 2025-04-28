@@ -25,7 +25,7 @@ export default function Cutscene({
     // Create audio element manually to ensure it works in all browsers
     try {
       const audio = new Howl({
-        src: ['/sounds/bad-boy.mp3'],
+        src: ['/sounds/bad-boy.m4a'],
         volume: 0.7,
         onload: () => setSoundLoaded(true),
         onloaderror: (id, error) => console.error("Audio load failed:", error)

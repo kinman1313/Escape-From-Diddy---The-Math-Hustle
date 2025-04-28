@@ -1,0 +1,113 @@
+/* styles/EnhancedFeedback.module.css */
+
+.modalContainer {
+  position: fixed;
+  top: 25%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 1rem 2rem;
+  border-radius: 1rem;
+  min-width: 300px;
+  max-width: 90%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: visible;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.correct {
+  background-color: rgba(16, 185, 129, 0.9);
+  color: white;
+}
+
+.wrong {
+  background-color: rgba(239, 68, 68, 0.9);
+  color: white;
+}
+
+/* Glowing background effect */
+.glow {
+  position: absolute;
+  inset: -5px;
+  background: inherit;
+  border-radius: inherit;
+  filter: blur(15px);
+  opacity: 0.5;
+  z-index: -1;
+}
+
+.content {
+  position: relative;
+  z-index: 1; /* above particles */
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.icon {
+  font-size: 2rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.message {
+  font-size: 1.5rem;
+  font-weight: bold;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.streakBonus {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: bold;
+  padding: 0.25rem 0.75rem;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+/* Particle system */
+.particleContainer {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* Animation for fading out */
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .modalContainer {
+    padding: 0.75rem 1.5rem;
+    min-width: 250px;
+  }
+  
+  .icon {
+    font-size: 1.5rem;
+  }
+  
+  .message {
+    font-size: 1.25rem;
+  }
+}

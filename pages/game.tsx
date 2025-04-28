@@ -72,6 +72,7 @@ export default function Game() {
   const [score, setScore] = useState(0)
   const [highScore, setHighScore] = useState(0)
   const [streak, setStreak] = useState(0)
+  const [prevStreak, setPrevStreak] = useState(0) // Track previous streak for animations
   const [proximity, setProximity] = useState(0)
   const [locked, setLocked] = useState(false)
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null)
@@ -86,6 +87,7 @@ export default function Game() {
     fiftyFifty: 0,
     repellent: 0
   })
+  const [activePowerup, setActivePowerup] = useState<PowerupType | null>(null)
   const [difficultyLevel, setDifficultyLevel] = useState(1)
   const [showTutorial, setShowTutorial] = useState(false)
   const [isGameOver, setIsGameOver] = useState(false)
@@ -260,6 +262,7 @@ export default function Game() {
     setTotalQuestions(prev => prev + 1)
 
     if (correct) {
+      setPrevStreak(streak) // Store previous streak for animation
       const newStreak = streak + 1
       const newScore = score + calculatePoints(timeLeft, difficultyLevel)
       setScore(newScore)
@@ -343,6 +346,7 @@ export default function Game() {
       }
     } else {
       // Wrong answer - reset streak and increase proximity
+      setPrevStreak(streak) // Store previous streak for animation
       setStreak(0)
       const newProximity = proximity + 1
       setProximity(newProximity)
@@ -387,6 +391,7 @@ export default function Game() {
     if (powerups[type] <= 0) return
     
     playSound('powerup', 'correct')
+    setActivePowerup(type) // Set active powerup for animation
     
     switch (type) {
       case 'timeFreeze':
@@ -394,6 +399,7 @@ export default function Game() {
         setIsTimerPaused(true)
         setTimeout(() => {
           setIsTimerPaused(false)
+          setActivePowerup(null) // Clear active powerup
         }, 5000)
         break
         
@@ -407,11 +413,15 @@ export default function Game() {
           const toEliminate = shuffledChoices.slice(0, Math.min(2, shuffledChoices.length))
           setEliminatedChoices(toEliminate)
         }
+        // Clear active powerup after a short delay
+        setTimeout(() => setActivePowerup(null), 2000)
         break
         
       case 'repellent':
         // Reduce proximity by 2
         setProximity(Math.max(0, proximity - 2))
+        // Clear active powerup after animation
+        setTimeout(() => setActivePowerup(null), 2000)
         break
     }
     
@@ -435,6 +445,7 @@ export default function Game() {
     setIsGameOver(false)
     setScore(0)
     setStreak(0)
+    setPrevStreak(0)
     setProximity(0)
     setCurrent(0)
     setTotalQuestions(0)
@@ -661,28 +672,43 @@ export default function Game() {
           )}
 
           {questions.length > 0 && current < questions.length ? (
-            <>
+            <motion.div
+              key={current} // This ensures animation triggers when question changes
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+              className={styles.questionContent || ''} // Fallback if class doesn't exist
+            >
               <h2 className={styles.questionPrompt}>{questions[current]?.prompt}</h2>
               <div className={styles.choicesGrid}>
-                {questions[current] && Object.entries(questions[current].choices).map(([key, value]) => (
-                  <button
+                {questions[current] && Object.entries(questions[current].choices).map(([key, value], index) => (
+                  <motion.button
                     key={key}
                     className={styles.choiceButton}
                     onClick={() => handleAnswer(key)}
                     disabled={locked || eliminatedChoices.includes(key)}
                     style={eliminatedChoices.includes(key) ? { opacity: 0.3, textDecoration: 'line-through' } : {}}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.1 }} // Staggered animation
                   >
                     <span className={styles.choiceKey}>{key}:</span>
                     <span className={styles.choiceValue}>
                       {typeof value === 'string' || typeof value === 'number' ? value : ''}
                     </span>
-                  </button>
+                  </motion.button>
                 ))}
               </div>
-            </>
+            </motion.div>
           ) : (
             <div className="p-4 text-center">
-              <p>Loading questions...</p>
+              <motion.p
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+              >
+                Loading questions...
+              </motion.p>
             </div>
           )}
         </div>

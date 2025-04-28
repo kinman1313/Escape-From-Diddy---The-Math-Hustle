@@ -1,0 +1,162 @@
+/* styles/PowerupEffects.module.css */
+
+.container {
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  background-color: rgba(0, 0, 0, 0.75);
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 1rem;
+  -webkit-backdrop-filter: blur(4px); /* For Safari compatibility */
+  backdrop-filter: blur(4px);
+  box-shadow: 0 0 20px rgba(0, 255, 204, 0.4);
+  text-align: center;
+  width: 300px;
+  max-width: 90vw;
+  border: 2px solid var(--math-green);
+}
+
+/* Time Freeze Effect */
+.timeFreezeEffect {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.clockIcon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+  filter: drop-shadow(0 0 10px rgba(0, 255, 204, 0.8));
+}
+
+.effectLabel {
+  font-size: 1.25rem;
+  font-weight: bold;
+  margin-bottom: 0.25rem;
+  color: var(--math-green);
+  text-shadow: 0 0 8px rgba(0, 255, 204, 0.5);
+}
+
+.countdown {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: white;
+}
+
+/* 50/50 Effect */
+.fiftyFiftyEffect {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem 0;
+}
+
+.effectIcon {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.fiftyIcon {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--math-green);
+}
+
+.fiftyDivider {
+  font-size: 2rem;
+  margin: 0 0.25rem;
+  font-weight: bold;
+  color: white;
+}
+
+/* Repellent Effect */
+.repellentEffect {
+  position: relative;
+  padding: 0.5rem 0;
+  overflow: hidden;
+  height: 120px;
+}
+
+.shieldIcon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+  filter: drop-shadow(0 0 10px rgba(0, 255, 204, 0.8));
+}
+
+.diddyRunning {
+  position: absolute;
+  bottom: 1rem;
+  right: 0;
+  font-size: 2rem;
+  transform: scaleX(-1); /* Make Diddy run in the correct direction */
+}
+
+/* Progress bar */
+.progressContainer {
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  margin-top: 0.75rem;
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  background-color: var(--math-green);
+  border-radius: 2px;
+}
+
+/* Animation keyframes */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .container {
+    width: 250px;
+    padding: 0.75rem 1rem;
+  }
+  
+  .clockIcon, .shieldIcon {
+    font-size: 2.5rem;
+  }
+  
+  .effectLabel {
+    font-size: 1rem;
+  }
+  
+  .countdown {
+    font-size: 1.25rem;
+  }
+}

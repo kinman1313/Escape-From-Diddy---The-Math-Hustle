@@ -124,6 +124,7 @@
   gap: 0.5rem;
   z-index: 10;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 
@@ -255,6 +256,11 @@
   opacity: 1;
 }
 
+/* Added for animations */
+.questionContent {
+  width: 100%;
+}
+
 .questionPrompt {
   font-size: 1.25rem;
   font-weight: bold;
@@ -352,6 +358,7 @@
   border-radius: 0.75rem;
   z-index: 20;
   background-color: rgba(0, 0, 0, 0.7);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 
@@ -544,109 +551,8 @@
   opacity: 1;
 }
 
-/* ===== Animations ===== */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.fadeIn {
-  animation: fadeIn 0.5s ease forwards;
-}
-
-.slideIn {
-  animation: slideIn 0.5s ease forwards;
-}
-
-.delayedFade {
-  opacity: 0;
-  animation: fadeIn 0.5s ease forwards;
-  animation-delay: 0.3s;
-}
-
-/* Add these styles to your Game.module.css file */
-
-.celebrationOverlay {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 50;
-  overflow: hidden;
-}
-
-.celebrationEmoji {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.celebrationItem {
-  position: absolute;
-  font-size: 2rem;
-  display: inline-block;
-  will-change: transform;
-  -webkit-user-select: none; /* Added for Safari support */
-    user-select: none;
-}
-
 /* Add this class for the timer pause effect */
 .paused {
   animation: pulse 1s infinite alternate;
-  box-shadow: 0 0 15px rgba(0, 255, 204, 0.8);
-}
-
-@keyframes pulse {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0.7;
-  }
-}
-
-/* ===== Mobile Responsiveness ===== */
-@media (max-width: 640px) {
-  .choicesGrid {
-    grid-template-columns: 1fr;
-  }
-  
-  .questionPrompt {
-    font-size: 1.125rem;
-  }
-  
-  .resultIcon {
-    font-size: 2.5rem;
-  }
-  
-  .resultText {
-    font-size: 1.5rem;
-  }
-  
-  .scoreContainer {
-    top: 0.5rem;
-    right: 0.5rem;
-    padding: 0.25rem 0.75rem;
-  }
-  
-  .streakBadge {
-    top: 2.5rem;
-    right: 0.5rem;
-  }
+  box-shadow: 0 0 0 8px rgba(0, 255, 204, 0.2);
 }

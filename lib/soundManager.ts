@@ -20,12 +20,12 @@ export function initSoundManager() {
   
   try {
     // Preload common sounds
-    registerSound('bad-boy', '/sounds/bad-boy.mp3')
-    registerSound('correct', '/sounds/correct.mp3')
-    registerSound('wrong', '/sounds/wrong.mp3')
-    registerSound('do-wa-diddy', '/sounds/do-wa-diddy.mp3')
-    registerSound('i-like-this', '/sounds/i-like-this.mp3')
-    registerSound('powerup', '/sounds/powerup.mp3')
+    registerSound('bad-boy', '/sounds/bad-boy.m4a')
+    registerSound('correct', '/sounds/correct.m4a')
+    registerSound('wrong', '/sounds/wrong.m4a')
+    registerSound('do-wa-diddy', '/sounds/do-wa-diddy.m4a')
+    registerSound('i-like-this', '/sounds/i-like-this.m4a')
+    registerSound('powerup', '/sounds/powerup.m4a')
     
     isInitialized = true
     return true
@@ -69,7 +69,7 @@ export function playSound(name: string, fallbackName?: string) {
     
     // If not cached, create it
     if (!sound && !loadedSounds[name]) {
-      registerSound(name, `/sounds/${name}.mp3`)
+      registerSound(name, `/sounds/${name}.m4a`)
       sound = sounds[name]
     }
     
@@ -140,7 +140,7 @@ export function initAudioContext() {
   try {
     // Create a silent sound and play it to unlock audio on iOS/Safari
     const unlockSound = new Howl({
-      src: ['/sounds/silent.mp3'],
+      src: ['/sounds/silent.m4a'],
       volume: 0.001,
       html5: true
     })
