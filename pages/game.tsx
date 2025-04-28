@@ -17,6 +17,9 @@ import Cutscene from '@/components/Cutscene'
 import dynamic from 'next/dynamic'
 import { playSound, initAudioContext, playRandomSound, playStreakSound } from '@/lib/soundManager'
 
+// Import questions directly (we'll handle shuffling later)
+import originalQuestions from '@/data/questions.json'
+
 // Dynamically import Confetti to avoid SSR issues
 const Confetti = dynamic(() => import('react-confetti'), { ssr: false })
 
@@ -37,21 +40,34 @@ type PlayerData = {
     fiftyFifty?: number;
     repellent?: number;
   };
-}
+  hasSeenTutorial?: boolean;
+};
 
 type PowerupType = 'timeFreeze' | 'fiftyFifty' | 'repellent';
+
+// Define the Question type for better type safety
+type QuestionChoice = {
+  [key: string]: string | number;
+};
+
+type Question = {
+  id: number;
+  prompt: string;
+  choices: QuestionChoice;
+  answer: string;
+};
 
 const avatarMap: Record<string, { icon: string; label: string }> = {
   default: { icon: '🧍', label: 'Default' },
   'diddy-duck': { icon: '🎩', label: 'Diddy Duck' },
   'math-monkey': { icon: '🧠', label: 'Math Monkey' },
   'puff-algorithm': { icon: '🤖', label: 'Puff Algorithm' }
-}
+};
 
 export default function Game() {
   const { user } = useContext(AuthContext)
   const router = useRouter()
-  const [questions, setQuestions] = useState<any[]>([])
+  const [questions, setQuestions] = useState<Question[]>([])
   const [current, setCurrent] = useState(0)
   const [score, setScore] = useState(0)
   const [highScore, setHighScore] = useState(0)
@@ -104,13 +120,12 @@ export default function Game() {
   )
 
   // Handle first user interaction to initialize audio
-const handleFirstInteraction = useCallback(() => {
-  if (!audioInitialized) {
-    // Make sure initAudioContext doesn't use await internally
-    initAudioContext()
-    setAudioInitialized(true)
-  }
-}, [audioInitialized])
+  const handleFirstInteraction = useCallback(() => {
+    if (!audioInitialized) {
+      initAudioContext()
+      setAudioInitialized(true)
+    }
+  }, [audioInitialized])
 
   // Add event listener for first interaction
   useEffect(() => {
@@ -148,35 +163,20 @@ const handleFirstInteraction = useCallback(() => {
     }
   }, [])
 
+  // Redirect if not logged in
   useEffect(() => {
     if (!user) router.push('/login')
   }, [user, router])
 
-  // Shuffle and filter questions by difficulty level
+  // Shuffle questions when component mounts or difficulty changes
   useEffect(() => {
-    try {
-      // Import questions dynamically
-      import('@/data/questions.json')
-        .then((importedQuestions) => {
-          const originalQuestions = importedQuestions.default || []
-          // For demo purposes, assume all questions are available
-          // In a real app, you might tag questions with difficulty levels
-          const shuffled = [...originalQuestions].sort(() => 0.5 - Math.random())
-          setQuestions(shuffled)
-        })
-        .catch((error) => {
-          console.error("Failed to load questions:", error)
-          // Fallback to empty array if load fails
-          setQuestions([])
-        })
-    } catch (error) {
-      console.error("Error importing questions:", error)
-      setQuestions([])
-    }
+    // Create a copy of the original questions to shuffle
+    const shuffled = [...originalQuestions].sort(() => 0.5 - Math.random())
+    setQuestions(shuffled)
   }, [difficultyLevel])
 
+  // Update difficulty based on streak
   useEffect(() => {
-    // Increase difficulty based on streak
     if (streak >= 10) {
       setDifficultyLevel(3) // Hard
     } else if (streak >= 5) {
@@ -186,11 +186,13 @@ const handleFirstInteraction = useCallback(() => {
     }
   }, [streak])
 
+  // Fetch player data from Firestore
   useEffect(() => {
     const fetchPlayerData = async () => {
       if (!user) return
       const ref = doc(db, 'players', user.uid)
       const snap = await getDoc(ref)
+      
       if (snap.exists()) {
         const data = snap.data() as PlayerData
         setPlayerData(data)
@@ -205,25 +207,24 @@ const handleFirstInteraction = useCallback(() => {
         })
       }
 
-      // Display loading screen for 5 seconds
-setTimeout(() => {
-  setLoading(false);
-  if (snap.exists() && !snap.data().hasSeenTutorial) {
-    setShowTutorial(true);
-    updateDoc(ref, {
-      hasSeenTutorial: true
-    }).then(() => {
-      // Any code that needs to run after update completes
-    }).catch(error => {
-      console.error("Error updating hasSeenTutorial:", error);
-    });
-  }
-}, 5000);
-
+      // Display loading screen for a few seconds to build anticipation
+      setTimeout(() => {
+        setLoading(false)
+        if (snap.exists() && !snap.data().hasSeenTutorial) {
+          setShowTutorial(true)
+          updateDoc(ref, {
+            hasSeenTutorial: true
+          }).catch(error => {
+            console.error("Error updating hasSeenTutorial:", error)
+          })
+        }
+      }, 5000)
     }
+    
     fetchPlayerData()
   }, [user])
 
+  // Clear feedback after timeout
   useEffect(() => {
     if (loading) return
     const timer = setTimeout(() => {
@@ -233,6 +234,7 @@ setTimeout(() => {
     return () => clearTimeout(timer)
   }, [feedback, loading])
 
+  // Handle answer selection
   const handleAnswer = async (option: string | null) => {
     if (locked) return
     setLocked(true)
@@ -342,20 +344,23 @@ setTimeout(() => {
     } else {
       // Wrong answer - reset streak and increase proximity
       setStreak(0)
-      setProximity(proximity + 1)
+      const newProximity = proximity + 1
+      setProximity(newProximity)
       
-      // Reset streak in database
+      // Reset streak in database and update proximity
       await updateDoc(ref, {
-        streak: 0
+        streak: 0,
+        proximity: newProximity
       })
       
       // Check if game is over due to proximity
-      if (proximity + 1 >= 5) {
+      if (newProximity >= 5) {
         setIsGameOver(true)
         // Save final score
         await updateDoc(ref, {
           score: score,
-          highScore: Math.max(score, highScore)
+          highScore: Math.max(score, highScore),
+          proximity: 0 // Reset proximity for next game
         })
       }
     }
@@ -425,7 +430,22 @@ setTimeout(() => {
     }
   }
 
-  // Early returns
+  // Reset the game
+  const resetGame = () => {
+    setIsGameOver(false)
+    setScore(0)
+    setStreak(0)
+    setProximity(0)
+    setCurrent(0)
+    setTotalQuestions(0)
+    setCorrectAnswers(0)
+    
+    // Shuffle questions again
+    const shuffled = [...questions].sort(() => 0.5 - Math.random())
+    setQuestions(shuffled)
+  }
+
+  // Early returns for special states
   if (!user || loading || !playerData) return <LoadingScreen />
   
   // Show tutorial for new players
@@ -491,17 +511,7 @@ setTimeout(() => {
           </button>
           
           <button
-            onClick={() => {
-              setIsGameOver(false)
-              setScore(0)
-              setStreak(0)
-              setProximity(0)
-              setCurrent(0)
-              setTotalQuestions(0)
-              setCorrectAnswers(0)
-              const shuffled = [...questions].sort(() => 0.5 - Math.random())
-              setQuestions(shuffled)
-            }}
+            onClick={resetGame}
             className={styles.gameOverButton}
           >
             Try Again
@@ -663,7 +673,9 @@ setTimeout(() => {
                     style={eliminatedChoices.includes(key) ? { opacity: 0.3, textDecoration: 'line-through' } : {}}
                   >
                     <span className={styles.choiceKey}>{key}:</span>
-                    <span className={styles.choiceValue}>{value}</span>
+                    <span className={styles.choiceValue}>
+                      {typeof value === 'string' || typeof value === 'number' ? value : ''}
+                    </span>
                   </button>
                 ))}
               </div>
