@@ -680,7 +680,7 @@ export default function Game() {
                     disabled={locked || eliminatedChoices.includes(key)}
                   >
                     <span className="font-bold mr-1">{key}:</span>
-                    <span>{String(value)}</span>
+                    <span>{typeof value === 'string' || typeof value === 'number' ? value : ''}</span>
                   </button>
                 ))}
               </div>
