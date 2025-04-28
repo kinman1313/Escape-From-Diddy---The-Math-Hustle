@@ -32,17 +32,5 @@
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
       ]
     }
-  ],
-  "cache": {
-    "files": [
-      "**/*.js",
-      "**/*.css",
-      "**/*.woff2",
-      "**/*.m4a",
-      "**/*.mp3",
-      "**/*.webp",
-      "**/*.jpg",
-      "**/*.png"
-    ]
-  }
+  ]
 }
