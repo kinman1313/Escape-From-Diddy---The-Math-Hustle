@@ -1,23 +1,39 @@
 import { useEffect, useState, useContext } from 'react'
-import { 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  PhoneAuthProvider,
-  signInWithCredential // <-- add this import
-} from 'firebase/auth'
-import { auth, db } from '@/lib/firebase'
 import { useRouter } from 'next/router'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { AuthContext } from '@/components/AuthProvider'
 
+// Define global types for window
 declare global {
   interface Window {
     recaptchaVerifier?: any;
   }
+}
+
+// These will be dynamically imported on client-side only
+let auth: any = null;
+let GoogleAuthProvider: any = null;
+let signInWithPopup: any = null;
+let createUserWithEmailAndPassword: any = null;
+let signInWithEmailAndPassword: any = null;
+let RecaptchaVerifier: any = null;
+let signInWithPhoneNumber: any = null;
+let PhoneAuthProvider: any = null;
+let signInWithCredential: any = null;
+
+// Initialize Firebase Auth on client-side only
+if (typeof window !== 'undefined') {
+  const firebaseAuth = require('firebase/auth');
+  auth = require('@/lib/firebase').getAuth();
+  GoogleAuthProvider = firebaseAuth.GoogleAuthProvider;
+  signInWithPopup = firebaseAuth.signInWithPopup;
+  createUserWithEmailAndPassword = firebaseAuth.createUserWithEmailAndPassword;
+  signInWithEmailAndPassword = firebaseAuth.signInWithEmailAndPassword;
+  RecaptchaVerifier = firebaseAuth.RecaptchaVerifier;
+  signInWithPhoneNumber = firebaseAuth.signInWithPhoneNumber;
+  PhoneAuthProvider = firebaseAuth.PhoneAuthProvider;
+  signInWithCredential = firebaseAuth.signInWithCredential;
 }
 
 export default function Home() {
@@ -26,6 +42,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+  const [clientSideReady, setClientSideReady] = useState(false)
   
   // Added for email authentication
   const [authMethod, setAuthMethod] = useState('login') // 'login', 'register', 'phone'
@@ -38,12 +55,28 @@ export default function Home() {
   const [verificationId, setVerificationId] = useState('')
   const [showVerification, setShowVerification] = useState(false)
 
+  // Check for client-side environment
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setClientSideReady(true)
+    }
+  }, [])
+
   // Google login (existing code)
   const handleGoogleLogin = async () => {
-    if (loading) return
+    if (loading || !clientSideReady || !auth) {
+      if (!clientSideReady) {
+        setError('Authentication is only available in browser')
+      } else if (!auth) {
+        setError('Authentication service not initialized')
+      }
+      return
+    }
+    
     setLoading(true)
-    const provider = new GoogleAuthProvider()
+    
     try {
+      const provider = new GoogleAuthProvider()
       await signInWithPopup(auth, provider)
     } catch (err) {
       console.error(err)
@@ -55,7 +88,7 @@ export default function Home() {
 
   // Email Registration
   const handleEmailRegister = async () => {
-    if (loading) return
+    if (loading || !clientSideReady || !auth) return
     if (!email || !password) {
       setError('Email and password are required.')
       return
@@ -80,7 +113,7 @@ export default function Home() {
   
   // Email Login
   const handleEmailLogin = async () => {
-    if (loading) return
+    if (loading || !clientSideReady || !auth) return
     if (!email || !password) {
       setError('Email and password are required.')
       return
@@ -102,23 +135,30 @@ export default function Home() {
   
   // Initialize Phone Authentication
   const setupRecaptcha = () => {
+    if (!clientSideReady || !auth || !RecaptchaVerifier) return
+    
     if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        'size': 'normal',
-        'callback': () => {
-          // reCAPTCHA solved, allow phone auth
-        },
-        'expired-callback': () => {
-          // Response expired. Ask user to solve reCAPTCHA again.
-          setError('reCAPTCHA expired. Please try again.')
-        }
-      })
+      try {
+        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          'size': 'normal',
+          'callback': () => {
+            // reCAPTCHA solved, allow phone auth
+          },
+          'expired-callback': () => {
+            // Response expired. Ask user to solve reCAPTCHA again.
+            setError('reCAPTCHA expired. Please try again.')
+          }
+        })
+      } catch (err) {
+        console.error('Error setting up reCAPTCHA:', err)
+        setError('Failed to initialize reCAPTCHA. Please try again.')
+      }
     }
   }
   
   // Send Phone Verification Code
   const handleSendVerification = async () => {
-    if (loading) return
+    if (loading || !clientSideReady || !auth) return
     if (!phoneNumber) {
       setError('Phone number is required.')
       return
@@ -129,6 +169,10 @@ export default function Home() {
     
     try {
       setupRecaptcha()
+      if (!window.recaptchaVerifier) {
+        throw new Error('reCAPTCHA not initialized')
+      }
+      
       const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`
       const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier)
       setVerificationId(confirmationResult.verificationId)
@@ -139,8 +183,12 @@ export default function Home() {
       setError('Failed to send verification code. Please check your phone number.')
       // Reset reCAPTCHA if there's an error
       if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear()
-        window.recaptchaVerifier = null
+        try {
+          window.recaptchaVerifier.clear()
+          window.recaptchaVerifier = null
+        } catch (clearErr) {
+          console.error('Error clearing reCAPTCHA:', clearErr)
+        }
       }
     } finally {
       setLoading(false)
@@ -149,7 +197,7 @@ export default function Home() {
   
   // Verify Phone Code and Sign In
   const handleVerifyCode = async () => {
-    if (loading) return
+    if (loading || !clientSideReady || !auth) return
     if (!verificationCode) {
       setError('Verification code is required.')
       return
@@ -160,7 +208,7 @@ export default function Home() {
     
     try {
       const credential = PhoneAuthProvider.credential(verificationId, verificationCode)
-      await signInWithCredential(auth, credential) // <-- use modular API
+      await signInWithCredential(auth, credential)
       // Verification successful, user will be set in AuthContext
     } catch (err) {
       console.error(err)
@@ -203,7 +251,7 @@ export default function Home() {
       }
     }
     checkPlayer()
-  }, [user])
+  }, [user, router])
 
   // Render authentication methods if not logged in
   const renderAuthMethods = () => {
@@ -351,6 +399,16 @@ export default function Home() {
         </div>
       )
     }
+  }
+
+  // Show loading state while checking client-side env
+  if (!clientSideReady) {
+    return (
+      <main className="flex flex-col items-center justify-center min-h-screen gap-6">
+        <h1 className="text-4xl font-bold text-mathGreen">Escape From Diddy</h1>
+        <div className="text-white animate-pulse">Loading...</div>
+      </main>
+    )
   }
 
   return (
