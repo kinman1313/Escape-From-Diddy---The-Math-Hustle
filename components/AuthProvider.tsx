@@ -1,17 +1,46 @@
 // components/AuthProvider.tsx
 import { onAuthStateChanged, User } from 'firebase/auth'
 import { createContext, useEffect, useState, ReactNode } from 'react'
-import { auth } from '@/lib/firebase'
+import { getAuth } from '@/lib/firebase'
 
 export const AuthContext = createContext<{ user: User | null }>({ user: null })
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null)
+  const [authInitialized, setAuthInitialized] = useState(false)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, setUser)
-    return () => unsubscribe()
+    // Only run auth state listener on the client
+    if (typeof window !== 'undefined') {
+      const auth = getAuth()
+      
+      // If auth is null (server-side), skip auth initialization
+      if (!auth) {
+        setAuthInitialized(true)
+        return () => {}
+      }
+      
+      const unsubscribe = onAuthStateChanged(auth, (authUser) => {
+        setUser(authUser)
+        setAuthInitialized(true)
+      })
+      
+      return () => unsubscribe()
+    } else {
+      // Server-side - just mark as initialized
+      setAuthInitialized(true)
+      return () => {}
+    }
   }, [])
+
+  // Optionally: Don't render children until auth is initialized
+  // This prevents flickering/changes in UI state
+  if (!authInitialized) {
+    // You can replace this with a nice loading screen
+    return <div className="flex items-center justify-center min-h-screen">
+      <div className="text-mathGreen animate-pulse">Loading...</div>
+    </div>
+  }
 
   return (
     <AuthContext.Provider value={{ user }}>

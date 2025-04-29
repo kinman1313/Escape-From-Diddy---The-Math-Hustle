@@ -1,27 +1,43 @@
 // pages/login.tsx
 
 import type { NextPage } from 'next'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useContext } from 'react'
 import { useRouter } from 'next/router'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
-import { 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  PhoneAuthProvider,
-  linkWithCredential,
-  signInWithCredential // <-- add this import
-} from 'firebase/auth'
-import { auth } from '@/lib/firebase'
 import { AuthContext } from '@/components/AuthProvider'
 import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import styles from '@/styles/Login.module.css'
+
+// Lazy-loaded imports to prevent SSR issues
+let auth: any = null
+let RecaptchaVerifier: any = null
+let GoogleAuthProvider: any = null
+let signInWithPopup: any = null
+let signInWithEmailAndPassword: any = null
+let createUserWithEmailAndPassword: any = null
+let signInWithPhoneNumber: any = null
+let PhoneAuthProvider: any = null
+let linkWithCredential: any = null
+let signInWithCredential: any = null
+
+// Initialize Firebase Auth on client-side only
+if (typeof window !== 'undefined') {
+  const firebaseAuth = require('firebase/auth')
+  // Import auth functions dynamically
+  auth = require('@/lib/firebase').getAuth()
+  RecaptchaVerifier = firebaseAuth.RecaptchaVerifier
+  GoogleAuthProvider = firebaseAuth.GoogleAuthProvider
+  signInWithPopup = firebaseAuth.signInWithPopup
+  signInWithEmailAndPassword = firebaseAuth.signInWithEmailAndPassword
+  createUserWithEmailAndPassword = firebaseAuth.createUserWithEmailAndPassword
+  signInWithPhoneNumber = firebaseAuth.signInWithPhoneNumber
+  PhoneAuthProvider = firebaseAuth.PhoneAuthProvider
+  linkWithCredential = firebaseAuth.linkWithCredential
+  signInWithCredential = firebaseAuth.signInWithCredential
+}
 
 export default function Login() {
   const router = useRouter()
@@ -35,6 +51,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [formValid, setFormValid] = useState(false)
+  const [clientSideReady, setClientSideReady] = useState(false)
   
   // Phone authentication states
   const [phoneNumber, setPhoneNumber] = useState('')
@@ -42,7 +59,15 @@ export default function Login() {
   const [verificationCode, setVerificationCode] = useState('')
   const [verificationSent, setVerificationSent] = useState(false)
   const [phoneNickname, setPhoneNickname] = useState('')
-  const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null)
+  const [recaptchaVerifier, setRecaptchaVerifier] = useState<any | null>(null)
+  const recaptchaContainerRef = useRef<HTMLDivElement>(null)
+
+  // Check for client-side environment
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setClientSideReady(true)
+    }
+  }, [])
 
   // Validate form
   useEffect(() => {
@@ -66,37 +91,51 @@ export default function Login() {
 
   // Initialize recaptcha when phone mode is selected
   useEffect(() => {
-    if (mode === 'phone' && !recaptchaVerifier) {
-      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'normal',
-        callback: () => {
-          // reCAPTCHA solved, enable send verification button
-          setFormValid(true)
-        },
-        'expired-callback': () => {
-          // Reset on expiration
-          setFormValid(false)
-          setError('reCAPTCHA expired. Please solve it again.')
-        }
-      })
-      setRecaptchaVerifier(verifier)
+    if (!clientSideReady || !auth) return
+
+    if (mode === 'phone' && !recaptchaVerifier && recaptchaContainerRef.current) {
+      try {
+        const verifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
+          size: 'normal',
+          callback: () => {
+            // reCAPTCHA solved, enable send verification button
+            setFormValid(true)
+          },
+          'expired-callback': () => {
+            // Reset on expiration
+            setFormValid(false)
+            setError('reCAPTCHA expired. Please solve it again.')
+          }
+        })
+        setRecaptchaVerifier(verifier)
+      } catch (err) {
+        console.error('Failed to initialize reCAPTCHA:', err)
+        setError('Failed to initialize reCAPTCHA. Please try a different login method.')
+      }
     }
 
     // Clean up recaptcha when mode changes
     return () => {
       if (recaptchaVerifier && mode !== 'phone') {
-        recaptchaVerifier.clear()
+        try {
+          recaptchaVerifier.clear()
+        } catch (err) {
+          console.error('Error clearing reCAPTCHA:', err)
+        }
         setRecaptchaVerifier(null)
       }
     }
-  }, [mode])
+  }, [mode, clientSideReady, recaptchaVerifier])
 
   const loginWithGoogle = async () => {
-    if (loading) return
+    if (loading || !clientSideReady || !auth) return
+    
     setLoading(true)
-    const provider = new GoogleAuthProvider()
+    
     try {
+      const provider = new GoogleAuthProvider()
       const result = await signInWithPopup(auth, provider)
+      
       // Check if this is a new user and set initial data if needed
       const userRef = doc(db, 'players', result.user.uid)
       const userDoc = await getDoc(userRef)
@@ -134,9 +173,11 @@ export default function Login() {
   }
 
   const handleAuth = async () => {
-    if (loading || !formValid) return
+    if (loading || !formValid || !clientSideReady || !auth) return
+    
     setError('')
     setLoading(true)
+    
     try {
       if (mode === 'signup') {
         const userCred = await createUserWithEmailAndPassword(auth, email, password)
@@ -178,7 +219,8 @@ export default function Login() {
 
   // Send phone verification code
   const handleSendVerification = async () => {
-    if (loading || !formValid) return
+    if (loading || !formValid || !clientSideReady || !auth) return
+    
     setError('')
     setLoading(true)
     
@@ -211,20 +253,26 @@ export default function Login() {
       
       // Reset reCAPTCHA on error
       if (recaptchaVerifier) {
-        recaptchaVerifier.clear()
-        setRecaptchaVerifier(null)
-        
-        // Reinitialize the captcha
-        const newVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          size: 'normal',
-          callback: () => {
-            setFormValid(true)
-          },
-          'expired-callback': () => {
-            setFormValid(false)
+        try {
+          recaptchaVerifier.clear()
+          setRecaptchaVerifier(null)
+          
+          // Reinitialize the captcha
+          if (recaptchaContainerRef.current) {
+            const newVerifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
+              size: 'normal',
+              callback: () => {
+                setFormValid(true)
+              },
+              'expired-callback': () => {
+                setFormValid(false)
+              }
+            })
+            setRecaptchaVerifier(newVerifier)
           }
-        })
-        setRecaptchaVerifier(newVerifier)
+        } catch (clearErr) {
+          console.error('Error resetting reCAPTCHA:', clearErr)
+        }
       }
     } finally {
       setLoading(false)
@@ -233,7 +281,8 @@ export default function Login() {
 
   // Verify phone code and sign in
   const handleVerifyCode = async () => {
-    if (loading || !formValid) return
+    if (loading || !formValid || !clientSideReady || !auth) return
+    
     setError('')
     setLoading(true)
     
@@ -309,20 +358,26 @@ export default function Login() {
     setPhoneNickname('')
     
     // Reset and reinitialize recaptcha
-    if (recaptchaVerifier) {
-      recaptchaVerifier.clear()
-      setRecaptchaVerifier(null)
-      
-      const newVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'normal',
-        callback: () => {
-          setFormValid(true)
-        },
-        'expired-callback': () => {
-          setFormValid(false)
+    if (recaptchaVerifier && clientSideReady && auth) {
+      try {
+        recaptchaVerifier.clear()
+        setRecaptchaVerifier(null)
+        
+        if (recaptchaContainerRef.current) {
+          const newVerifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
+            size: 'normal',
+            callback: () => {
+              setFormValid(true)
+            },
+            'expired-callback': () => {
+              setFormValid(false)
+            }
+          })
+          setRecaptchaVerifier(newVerifier)
         }
-      })
-      setRecaptchaVerifier(newVerifier)
+      } catch (err) {
+        console.error('Error resetting reCAPTCHA:', err)
+      }
     }
   }
 
@@ -340,6 +395,18 @@ export default function Login() {
   const itemVariants = {
     hidden: { y: 20, opacity: 0 },
     visible: { y: 0, opacity: 1 }
+  }
+
+  // If we're server-side or auth is not initialized yet, show a simple loading state
+  if (!clientSideReady) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.backgroundPattern} />
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-mathGreen text-xl animate-pulse">Loading...</div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -432,7 +499,7 @@ export default function Login() {
 
                   <motion.div 
                     variants={itemVariants} 
-                    id="recaptcha-container" 
+                    ref={recaptchaContainerRef}
                     className={styles.recaptchaContainer}
                   ></motion.div>
 

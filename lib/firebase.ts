@@ -1,12 +1,5 @@
 // lib/firebase.ts
 import { initializeApp, getApps, getApp } from 'firebase/app'
-import { 
-  getAuth, 
-  GoogleAuthProvider, 
-  EmailAuthProvider, 
-  PhoneAuthProvider,
-  connectAuthEmulator
-} from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 // 🛡 Vercel-friendly initialize check
@@ -21,18 +14,76 @@ const firebaseConfig = {
 
 // Only initialize ONCE
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp()
-const auth = getAuth(app)
-const db = getFirestore(app)
 
-// Initialize auth providers
-export const googleProvider = new GoogleAuthProvider()
-export const emailProvider = new EmailAuthProvider()
-export const phoneProvider = new PhoneAuthProvider(auth)
+// Export Firestore which works both server and client-side
+export const db = getFirestore(app)
 
-// Connect to auth emulator if in development mode (optional)
-if (process.env.NODE_ENV === 'development') {
-  // Uncomment the next line to use Firebase local emulators
-  // connectAuthEmulator(auth, 'http://localhost:9099')
+// Auth exports - client-side only
+let auth: import('firebase/auth').Auth | null = null;
+let googleProvider: import('firebase/auth').GoogleAuthProvider | null = null;
+let emailProvider: import('firebase/auth').EmailAuthProvider | null = null;
+let phoneProvider: import('firebase/auth').PhoneAuthProvider | null = null;
+
+// Initialize auth only on the client side
+if (typeof window !== 'undefined') {
+  // Dynamic imports to avoid SSR issues
+  const { 
+    getAuth, 
+    GoogleAuthProvider, 
+    EmailAuthProvider, 
+    PhoneAuthProvider,
+    connectAuthEmulator 
+  } = require('firebase/auth');
+  
+  auth = getAuth(app);
+  googleProvider = new GoogleAuthProvider();
+  emailProvider = new EmailAuthProvider();
+  phoneProvider = new PhoneAuthProvider(auth);
+  
+  // Connect to auth emulator if in development mode (optional)
+  if (process.env.NODE_ENV === 'development') {
+    // Uncomment the next line to use Firebase local emulators
+    // connectAuthEmulator(auth, 'http://localhost:9099')
+  }
 }
 
-export { auth, db }
+// Safety wrapper functions for auth
+export const getAuth = () => {
+  if (typeof window === 'undefined') {
+    console.warn('Attempted to access auth during SSR');
+    return null;
+  }
+  return auth;
+};
+
+export const getGoogleProvider = () => {
+  if (typeof window === 'undefined') {
+    console.warn('Attempted to access auth provider during SSR');
+    return null;
+  }
+  return googleProvider;
+};
+
+export const getEmailProvider = () => {
+  if (typeof window === 'undefined') {
+    console.warn('Attempted to access auth provider during SSR');
+    return null;
+  }
+  return emailProvider;
+};
+
+export const getPhoneProvider = () => {
+  if (typeof window === 'undefined') {
+    console.warn('Attempted to access auth provider during SSR');
+    return null;
+  }
+  return phoneProvider;
+};
+
+// For backward compatibility with existing code
+export { 
+  auth,
+  googleProvider, 
+  emailProvider, 
+  phoneProvider 
+}
