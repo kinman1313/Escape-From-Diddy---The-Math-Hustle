@@ -5,12 +5,20 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   RecaptchaVerifier,
-  signInWithPhoneNumber 
+  signInWithPhoneNumber,
+  PhoneAuthProvider,
+  signInWithCredential // <-- add this import
 } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
 import { useRouter } from 'next/router'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { AuthContext } from '@/components/AuthProvider'
+
+declare global {
+  interface Window {
+    recaptchaVerifier?: any;
+  }
+}
 
 export default function Home() {
   const { user } = useContext(AuthContext)
@@ -61,7 +69,10 @@ export default function Home() {
       // Registration successful, user will be set in AuthContext
     } catch (err) {
       console.error(err)
-      setError(err.message || 'Registration failed. Please try again.')
+      const message = typeof err === 'object' && err && 'message' in err
+        ? (err as { message?: string }).message
+        : undefined
+      setError(message || 'Registration failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -148,9 +159,8 @@ export default function Home() {
     setError('')
     
     try {
-      const credential = await auth.signInWithCredential(
-        auth.PhoneAuthProvider.credential(verificationId, verificationCode)
-      )
+      const credential = PhoneAuthProvider.credential(verificationId, verificationCode)
+      await signInWithCredential(auth, credential) // <-- use modular API
       // Verification successful, user will be set in AuthContext
     } catch (err) {
       console.error(err)
