@@ -1,11 +1,21 @@
 // pages/login.tsx
+
 import type { NextPage } from 'next'
 import { useState, useEffect } from 'react'
 import { useContext } from 'react'
 import { useRouter } from 'next/router'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
-import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
+import { 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  PhoneAuthProvider,
+  linkWithCredential
+} from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { AuthContext } from '@/components/AuthProvider'
 import { doc, setDoc, getDoc } from 'firebase/firestore'
@@ -16,7 +26,7 @@ export default function Login() {
   const router = useRouter()
   const { user } = useContext(AuthContext)
 
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [mode, setMode] = useState<'login' | 'signup' | 'phone'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [nickname, setNickname] = useState('')
@@ -24,19 +34,61 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [formValid, setFormValid] = useState(false)
+  
+  // Phone authentication states
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [verificationId, setVerificationId] = useState('')
+  const [verificationCode, setVerificationCode] = useState('')
+  const [verificationSent, setVerificationSent] = useState(false)
+  const [phoneNickname, setPhoneNickname] = useState('')
+  const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null)
 
   // Validate form
   useEffect(() => {
     if (mode === 'login') {
       setFormValid(email.includes('@') && password.length >= 6)
-    } else {
+    } else if (mode === 'signup') {
       setFormValid(email.includes('@') && password.length >= 6 && nickname.length >= 3)
+    } else if (mode === 'phone') {
+      if (verificationSent) {
+        setFormValid(verificationCode.length >= 6 && phoneNickname.length >= 3)
+      } else {
+        const phoneRegex = /^\+?[1-9]\d{1,14}$/
+        setFormValid(phoneRegex.test(phoneNumber))
+      }
     }
-  }, [email, password, nickname, mode])
+  }, [email, password, nickname, mode, phoneNumber, verificationCode, phoneNickname, verificationSent])
 
   useEffect(() => {
     if (user) router.push('/game')
   }, [user, router])
+
+  // Initialize recaptcha when phone mode is selected
+  useEffect(() => {
+    if (mode === 'phone' && !recaptchaVerifier) {
+      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'normal',
+        callback: () => {
+          // reCAPTCHA solved, enable send verification button
+          setFormValid(true)
+        },
+        'expired-callback': () => {
+          // Reset on expiration
+          setFormValid(false)
+          setError('reCAPTCHA expired. Please solve it again.')
+        }
+      })
+      setRecaptchaVerifier(verifier)
+    }
+
+    // Clean up recaptcha when mode changes
+    return () => {
+      if (recaptchaVerifier && mode !== 'phone') {
+        recaptchaVerifier.clear()
+        setRecaptchaVerifier(null)
+      }
+    }
+  }, [mode])
 
   const loginWithGoogle = async () => {
     if (loading) return
@@ -123,10 +175,153 @@ export default function Login() {
     }
   }
 
+  // Send phone verification code
+  const handleSendVerification = async () => {
+    if (loading || !formValid) return
+    setError('')
+    setLoading(true)
+    
+    try {
+      if (!recaptchaVerifier) {
+        throw new Error('reCAPTCHA not initialized')
+      }
+      
+      // Format phone number if needed
+      const formattedNumber = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`
+      
+      const confirmationResult = await signInWithPhoneNumber(
+        auth,
+        formattedNumber,
+        recaptchaVerifier
+      )
+      
+      setVerificationId(confirmationResult.verificationId)
+      setVerificationSent(true)
+      setError('')
+    } catch (err: any) {
+      console.error('Phone verification error:', err)
+      if (err.code === 'auth/invalid-phone-number') {
+        setError('Invalid phone number. Please include country code (e.g., +1 for US).')
+      } else if (err.code === 'auth/quota-exceeded') {
+        setError('Too many verification attempts. Please try again later.')
+      } else {
+        setError('Failed to send verification code. Please try again.')
+      }
+      
+      // Reset reCAPTCHA on error
+      if (recaptchaVerifier) {
+        recaptchaVerifier.clear()
+        setRecaptchaVerifier(null)
+        
+        // Reinitialize the captcha
+        const newVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          size: 'normal',
+          callback: () => {
+            setFormValid(true)
+          },
+          'expired-callback': () => {
+            setFormValid(false)
+          }
+        })
+        setRecaptchaVerifier(newVerifier)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Verify phone code and sign in
+  const handleVerifyCode = async () => {
+    if (loading || !formValid) return
+    setError('')
+    setLoading(true)
+    
+    try {
+      // Create the credential
+      const phoneCredential = PhoneAuthProvider.credential(
+        verificationId,
+        verificationCode
+      )
+      
+      // Sign in with the credential
+      const userCredential = await auth.signInWithCredential(phoneCredential)
+      const user = userCredential.user
+      
+      // Check if this is a new user and set up their profile
+      const userRef = doc(db, 'players', user.uid)
+      const userDoc = await getDoc(userRef)
+      
+      if (!userDoc.exists()) {
+        // New phone user, set up their account
+        await setDoc(userRef, {
+          nickname: phoneNickname,
+          phoneNumber: user.phoneNumber,
+          streak: 0,
+          proximity: 0,
+          score: 0,
+          gear: [],
+          avatar: 'default',
+          powerups: {
+            timeFreeze: 2,
+            fiftyFifty: 1,
+            repellent: 1
+          },
+          created: new Date()
+        })
+      }
+    } catch (err: any) {
+      console.error('Phone verification error:', err)
+      if (err.code === 'auth/invalid-verification-code') {
+        setError('Invalid verification code. Please try again.')
+      } else if (err.code === 'auth/code-expired') {
+        setError('Verification code has expired. Please request a new one.')
+        setVerificationSent(false)
+      } else {
+        setError('Verification failed. Please try again.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Handle Enter key press
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && formValid) {
-      handleAuth()
+      if (mode === 'phone') {
+        if (verificationSent) {
+          handleVerifyCode()
+        } else {
+          handleSendVerification()
+        }
+      } else {
+        handleAuth()
+      }
+    }
+  }
+
+  // Reset phone verification
+  const resetPhoneVerification = () => {
+    setVerificationSent(false)
+    setVerificationCode('')
+    setVerificationId('')
+    setPhoneNumber('')
+    setPhoneNickname('')
+    
+    // Reset and reinitialize recaptcha
+    if (recaptchaVerifier) {
+      recaptchaVerifier.clear()
+      setRecaptchaVerifier(null)
+      
+      const newVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'normal',
+        callback: () => {
+          setFormValid(true)
+        },
+        'expired-callback': () => {
+          setFormValid(false)
+        }
+      })
+      setRecaptchaVerifier(newVerifier)
     }
   }
 
@@ -182,6 +377,15 @@ export default function Login() {
           >
             Sign Up
           </button>
+          <button 
+            className={`${styles.tabButton} ${mode === 'phone' ? styles.activeTab : ''}`}
+            onClick={() => {
+              setMode('phone')
+              resetPhoneVerification()
+            }}
+          >
+            Phone
+          </button>
         </div>
 
         <AnimatePresence mode="wait">
@@ -203,93 +407,193 @@ export default function Login() {
               </motion.div>
             )}
 
-            <motion.div variants={itemVariants} className={styles.inputGroup}>
-              <label htmlFor="email" className={styles.inputLabel}>Email</label>
-              <div className={styles.inputContainer}>
-                <span className={styles.inputIcon}>📧</span>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className={styles.input}
-                  placeholder="your-email@example.com"
-                />
-              </div>
-            </motion.div>
+            {mode === 'phone' ? (
+              // Phone authentication form
+              !verificationSent ? (
+                // Phone number entry step
+                <>
+                  <motion.div variants={itemVariants} className={styles.inputGroup}>
+                    <label htmlFor="phoneNumber" className={styles.inputLabel}>Phone Number</label>
+                    <div className={styles.inputContainer}>
+                      <span className={styles.inputIcon}>📱</span>
+                      <input
+                        id="phoneNumber"
+                        type="tel"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className={styles.input}
+                        placeholder="+1 123 456 7890"
+                      />
+                    </div>
+                    <p className={styles.inputHelp}>Include country code (e.g., +1 for US)</p>
+                  </motion.div>
 
-            <motion.div variants={itemVariants} className={styles.inputGroup}>
-              <label htmlFor="password" className={styles.inputLabel}>Password</label>
-              <div className={styles.inputContainer}>
-                <span className={styles.inputIcon}>🔑</span>
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className={styles.input}
-                  placeholder="••••••••"
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className={styles.passwordToggle}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  <motion.div 
+                    variants={itemVariants} 
+                    id="recaptcha-container" 
+                    className={styles.recaptchaContainer}
+                  ></motion.div>
+
+                  <motion.button
+                    variants={itemVariants}
+                    onClick={handleSendVerification}
+                    disabled={loading || !formValid}
+                    className={styles.authButton}
+                  >
+                    {loading ? (
+                      <div className={styles.spinner}></div>
+                    ) : 'Send Verification Code'}
+                  </motion.button>
+                </>
+              ) : (
+                // Verification code step
+                <>
+                  <motion.div variants={itemVariants} className={styles.inputGroup}>
+                    <label htmlFor="verificationCode" className={styles.inputLabel}>Verification Code</label>
+                    <div className={styles.inputContainer}>
+                      <span className={styles.inputIcon}>🔢</span>
+                      <input
+                        id="verificationCode"
+                        type="text"
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className={styles.input}
+                        placeholder="Enter 6-digit code"
+                      />
+                    </div>
+                  </motion.div>
+
+                  <motion.div variants={itemVariants} className={styles.inputGroup}>
+                    <label htmlFor="phoneNickname" className={styles.inputLabel}>Nickname</label>
+                    <div className={styles.inputContainer}>
+                      <span className={styles.inputIcon}>🏷️</span>
+                      <input
+                        id="phoneNickname"
+                        type="text"
+                        value={phoneNickname}
+                        onChange={(e) => setPhoneNickname(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className={styles.input}
+                        placeholder="Choose a nickname"
+                      />
+                    </div>
+                  </motion.div>
+
+                  <motion.button
+                    variants={itemVariants}
+                    onClick={handleVerifyCode}
+                    disabled={loading || !formValid}
+                    className={styles.authButton}
+                  >
+                    {loading ? (
+                      <div className={styles.spinner}></div>
+                    ) : 'Verify & Sign In'}
+                  </motion.button>
+
+                  <motion.button
+                    variants={itemVariants}
+                    onClick={resetPhoneVerification}
+                    disabled={loading}
+                    className={styles.secondaryButton}
+                  >
+                    Back to Phone Entry
+                  </motion.button>
+                </>
+              )
+            ) : (
+              // Email/password authentication forms
+              <>
+                <motion.div variants={itemVariants} className={styles.inputGroup}>
+                  <label htmlFor="email" className={styles.inputLabel}>Email</label>
+                  <div className={styles.inputContainer}>
+                    <span className={styles.inputIcon}>📧</span>
+                    <input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      className={styles.input}
+                      placeholder="your-email@example.com"
+                    />
+                  </div>
+                </motion.div>
+
+                <motion.div variants={itemVariants} className={styles.inputGroup}>
+                  <label htmlFor="password" className={styles.inputLabel}>Password</label>
+                  <div className={styles.inputContainer}>
+                    <span className={styles.inputIcon}>🔑</span>
+                    <input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      className={styles.input}
+                      placeholder="••••••••"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className={styles.passwordToggle}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? "👁️" : "👁️‍🗨️"}
+                    </button>
+                  </div>
+                  {mode === 'login' && (
+                    <button className={styles.forgotPassword}>
+                      Forgot Password?
+                    </button>
+                  )}
+                </motion.div>
+
+                {mode === 'signup' && (
+                  <motion.div variants={itemVariants} className={styles.inputGroup}>
+                    <label htmlFor="nickname" className={styles.inputLabel}>Nickname</label>
+                    <div className={styles.inputContainer}>
+                      <span className={styles.inputIcon}>🏷️</span>
+                      <input
+                        id="nickname"
+                        type="text"
+                        value={nickname}
+                        onChange={(e) => setNickname(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className={styles.input}
+                        placeholder="MathWizard99"
+                      />
+                    </div>
+                  </motion.div>
+                )}
+
+                <motion.button
+                  variants={itemVariants}
+                  onClick={handleAuth}
+                  disabled={loading || !formValid}
+                  className={styles.authButton}
                 >
-                  {showPassword ? "👁️" : "👁️‍🗨️"}
-                </button>
-              </div>
-              {mode === 'login' && (
-                <button className={styles.forgotPassword}>
-                  Forgot Password?
-                </button>
-              )}
-            </motion.div>
+                  {loading ? (
+                    <div className={styles.spinner}></div>
+                  ) : mode === 'signup' ? 'Create Account' : 'Log In'}
+                </motion.button>
 
-            {mode === 'signup' && (
-              <motion.div variants={itemVariants} className={styles.inputGroup}>
-                <label htmlFor="nickname" className={styles.inputLabel}>Nickname</label>
-                <div className={styles.inputContainer}>
-                  <span className={styles.inputIcon}>🏷️</span>
-                  <input
-                    id="nickname"
-                    type="text"
-                    value={nickname}
-                    onChange={(e) => setNickname(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    className={styles.input}
-                    placeholder="MathWizard99"
-                  />
-                </div>
-              </motion.div>
+                <motion.div variants={itemVariants} className={styles.divider}>
+                  <span>or</span>
+                </motion.div>
+
+                <motion.button
+                  variants={itemVariants}
+                  onClick={loginWithGoogle}
+                  disabled={loading}
+                  className={styles.googleButton}
+                >
+                  <div className={styles.googleIcon}>G</div>
+                  {loading ? 'Connecting...' : 'Continue with Google'}
+                </motion.button>
+              </>
             )}
-
-            <motion.button
-              variants={itemVariants}
-              onClick={handleAuth}
-              disabled={loading || !formValid}
-              className={styles.authButton}
-            >
-              {loading ? (
-                <div className={styles.spinner}></div>
-              ) : mode === 'signup' ? 'Create Account' : 'Log In'}
-            </motion.button>
-
-            <motion.div variants={itemVariants} className={styles.divider}>
-              <span>or</span>
-            </motion.div>
-
-            <motion.button
-              variants={itemVariants}
-              onClick={loginWithGoogle}
-              disabled={loading}
-              className={styles.googleButton}
-            >
-              <div className={styles.googleIcon}>G</div>
-              {loading ? 'Connecting...' : 'Continue with Google'}
-            </motion.button>
           </motion.div>
         </AnimatePresence>
 
@@ -303,8 +607,18 @@ export default function Login() {
               >
                 Sign up
               </button>
+              {' or '}
+              <button 
+                onClick={() => {
+                  setMode('phone')
+                  resetPhoneVerification()
+                }}
+                className={styles.switchModeLink}
+              >
+                use phone
+              </button>
             </p>
-          ) : (
+          ) : mode === 'signup' ? (
             <p>
               Already have an account?{' '}
               <button 
@@ -312,6 +626,33 @@ export default function Login() {
                 className={styles.switchModeLink}
               >
                 Log in
+              </button>
+              {' or '}
+              <button 
+                onClick={() => {
+                  setMode('phone')
+                  resetPhoneVerification()
+                }}
+                className={styles.switchModeLink}
+              >
+                use phone
+              </button>
+            </p>
+          ) : (
+            <p>
+              Prefer email auth?{' '}
+              <button 
+                onClick={() => setMode('login')}
+                className={styles.switchModeLink}
+              >
+                Log in
+              </button>
+              {' or '}
+              <button 
+                onClick={() => setMode('signup')}
+                className={styles.switchModeLink}
+              >
+                sign up
               </button>
             </p>
           )}
