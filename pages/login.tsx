@@ -14,8 +14,12 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
   PhoneAuthProvider,
+<<<<<<< HEAD
   linkWithCredential,
   signInWithCredential // <-- add this import
+=======
+  linkWithCredential
+>>>>>>> 27a52267a560981e409286ae7b514e1606b4ca50
 } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { AuthContext } from '@/components/AuthProvider'
@@ -245,7 +249,11 @@ export default function Login() {
       )
       
       // Sign in with the credential
+<<<<<<< HEAD
       const userCredential = await signInWithCredential(auth, phoneCredential)
+=======
+      const userCredential = await auth.signInWithCredential(phoneCredential)
+>>>>>>> 27a52267a560981e409286ae7b514e1606b4ca50
       const user = userCredential.user
       
       // Check if this is a new user and set up their profile
