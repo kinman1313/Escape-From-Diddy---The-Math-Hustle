@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { AuthContext } from '@/components/AuthProvider'
 import { doc, getDoc, updateDoc, arrayUnion, increment } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import ImageEvents from '@/components/ImageEvents';
 import useTimer from '@/hooks/useTimer'
 import NavBar from '@/components/NavBar'
 import DiddyMeter from '@/components/DiddyMeter'
@@ -464,26 +465,29 @@ export default function Game() {
     return <GameTutorial onComplete={() => setShowTutorial(false)} />
   }
   
-  // Show cutscene before game starts
-  if (!cutsceneDone) {
-    return (
-      <div onClick={handleFirstInteraction}>
-        <Cutscene 
-          onComplete={() => {
-            setCutsceneDone(true)
-            // Play a sound when cutscene ends
-            playSound('i-like-this', 'correct')
-          }} 
-        />
-      </div>
-    )
-  }
+// Show cutscene before game starts
+if (!cutsceneDone) {
+  return (
+    <div onClick={handleFirstInteraction}>
+      <Cutscene 
+        onComplete={() => {
+          setCutsceneDone(true)
+          // Play a sound when cutscene ends
+          playSound('i-like-this', 'correct')
+        }} 
+      />
+    </div>
+  )
+}
   
-  // Game over screen
-  if (isGameOver) {
-    return (
-      <>
-        <NavBar />
+if (isGameOver) {
+  return (
+    <>
+      <NavBar />
+      <div 
+        className={styles.gameContainer} 
+        onClick={handleFirstInteraction}
+      >
         <div className={styles.gameOverContainer}>
           <h1 className={styles.gameOverTitle}>💥 Busted by Diddy!</h1>
           <p className={styles.gameOverMessage}>You couldn't outrun the hustle.</p>
@@ -528,11 +532,15 @@ export default function Game() {
             Try Again
           </button>
         </div>
-      </>
-    )
-  }
+        
+        {/* Add ImageEvents component here */}
+        <ImageEvents />
+      </div>
+    </>
+  )
+}
 
-  const percentLeft = (timeLeft / timeLimit) * 100
+const percentLeft = (timeLeft / timeLimit) * 100
   
   // Get the appropriate color class for the timer bar
   const getBarColorClass = () => {

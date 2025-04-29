@@ -1,6 +1,12 @@
 // lib/firebase.ts
 import { initializeApp, getApps, getApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  EmailAuthProvider, 
+  PhoneAuthProvider,
+  connectAuthEmulator
+} from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 // 🛡 Vercel-friendly initialize check
@@ -15,6 +21,18 @@ const firebaseConfig = {
 
 // Only initialize ONCE
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp()
+const auth = getAuth(app)
+const db = getFirestore(app)
 
-export const auth = getAuth(app)
-export const db = getFirestore(app)
+// Initialize auth providers
+export const googleProvider = new GoogleAuthProvider()
+export const emailProvider = new EmailAuthProvider()
+export const phoneProvider = new PhoneAuthProvider(auth)
+
+// Connect to auth emulator if in development mode (optional)
+if (process.env.NODE_ENV === 'development') {
+  // Uncomment the next line to use Firebase local emulators
+  // connectAuthEmulator(auth, 'http://localhost:9099')
+}
+
+export { auth, db }

@@ -3,6 +3,7 @@ import '@/styles/globals.css'
 import type { AppProps } from 'next/app'
 import Head from 'next/head'
 import { AuthProvider } from '@/components/AuthProvider'
+import { GameProvider } from '@/components/GameProvider'
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
@@ -14,9 +15,11 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <AuthProvider>
-        <main className="min-h-screen bg-black text-white font-sans antialiased">
-          <Component {...pageProps} />
-        </main>
+        <GameProvider>
+          <main className="min-h-screen bg-black text-white font-sans antialiased">
+            <Component {...pageProps} />
+          </main>
+        </GameProvider>
       </AuthProvider>
     </>
   )
