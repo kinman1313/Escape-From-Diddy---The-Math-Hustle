@@ -1,439 +1,248 @@
+// pages/index.tsx
+
 import { useEffect, useState, useContext } from 'react'
 import { useRouter } from 'next/router'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { AuthContext } from '@/components/AuthProvider'
 
-// Define global types for window
 declare global {
   interface Window {
-    recaptchaVerifier?: any;
+    recaptchaVerifier?: any
   }
 }
 
-// These will be dynamically imported on client-side only
-let auth: any = null;
-let GoogleAuthProvider: any = null;
-let signInWithPopup: any = null;
-let createUserWithEmailAndPassword: any = null;
-let signInWithEmailAndPassword: any = null;
-let RecaptchaVerifier: any = null;
-let signInWithPhoneNumber: any = null;
-let PhoneAuthProvider: any = null;
-let signInWithCredential: any = null;
+let auth: any = null
+let firebaseAuth: any = null
 
-// Initialize Firebase Auth on client-side only
 if (typeof window !== 'undefined') {
-  const firebaseAuth = require('firebase/auth');
-  auth = require('@/lib/firebase').getAuth();
-  GoogleAuthProvider = firebaseAuth.GoogleAuthProvider;
-  signInWithPopup = firebaseAuth.signInWithPopup;
-  createUserWithEmailAndPassword = firebaseAuth.createUserWithEmailAndPassword;
-  signInWithEmailAndPassword = firebaseAuth.signInWithEmailAndPassword;
-  RecaptchaVerifier = firebaseAuth.RecaptchaVerifier;
-  signInWithPhoneNumber = firebaseAuth.signInWithPhoneNumber;
-  PhoneAuthProvider = firebaseAuth.PhoneAuthProvider;
-  signInWithCredential = firebaseAuth.signInWithCredential;
+  firebaseAuth = require('firebase/auth')
+  auth = require('@/lib/firebase').getAuthInstance()
 }
 
 export default function Home() {
-  const { user } = useContext(AuthContext)
-  const [nickname, setNickname] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
   const router = useRouter()
-  const [clientSideReady, setClientSideReady] = useState(false)
-  
-  // Added for email authentication
-  const [authMethod, setAuthMethod] = useState('login') // 'login', 'register', 'phone'
+  const { user } = useContext(AuthContext)
+
+  const [clientReady, setClientReady] = useState(false)
+  const [nickname, setNickname] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  
-  // Added for phone authentication
   const [phoneNumber, setPhoneNumber] = useState('')
   const [verificationCode, setVerificationCode] = useState('')
   const [verificationId, setVerificationId] = useState('')
+  const [authMethod, setAuthMethod] = useState<'login' | 'register' | 'phone'>('login')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [showVerification, setShowVerification] = useState(false)
 
-  // Check for client-side environment
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setClientSideReady(true)
+      setClientReady(true)
     }
   }, [])
 
-  // Google login (existing code)
-  const handleGoogleLogin = async () => {
-    if (loading || !clientSideReady || !auth) {
-      if (!clientSideReady) {
-        setError('Authentication is only available in browser')
-      } else if (!auth) {
-        setError('Authentication service not initialized')
+  useEffect(() => {
+    const checkUser = async () => {
+      if (user) {
+        const ref = doc(db, 'players', user.uid)
+        const snapshot = await getDoc(ref)
+        if (snapshot.exists()) router.push('/game')
       }
-      return
     }
-    
-    setLoading(true)
-    
+    checkUser()
+  }, [user])
+
+  const handleGoogleLogin = async () => {
+    if (!auth || !firebaseAuth) return
+    const provider = new firebaseAuth.GoogleAuthProvider()
     try {
-      const provider = new GoogleAuthProvider()
-      await signInWithPopup(auth, provider)
+      await firebaseAuth.signInWithPopup(auth, provider)
     } catch (err) {
-      console.error(err)
+      console.error('Google login failed:', err)
       setError('Google login failed.')
-    } finally {
-      setLoading(false)
     }
   }
 
-  // Email Registration
-  const handleEmailRegister = async () => {
-    if (loading || !clientSideReady || !auth) return
-    if (!email || !password) {
-      setError('Email and password are required.')
-      return
-    }
-    
-    setLoading(true)
-    setError('')
-    
-    try {
-      await createUserWithEmailAndPassword(auth, email, password)
-      // Registration successful, user will be set in AuthContext
-    } catch (err) {
-      console.error(err)
-      const message = typeof err === 'object' && err && 'message' in err
-        ? (err as { message?: string }).message
-        : undefined
-      setError(message || 'Registration failed. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-  
-  // Email Login
   const handleEmailLogin = async () => {
-    if (loading || !clientSideReady || !auth) return
-    if (!email || !password) {
-      setError('Email and password are required.')
-      return
-    }
-    
-    setLoading(true)
-    setError('')
-    
+    if (!email || !password || !auth) return
     try {
-      await signInWithEmailAndPassword(auth, email, password)
-      // Login successful, user will be set in AuthContext
-    } catch (err) {
+      await firebaseAuth.signInWithEmailAndPassword(auth, email, password)
+    } catch (err: any) {
       console.error(err)
-      setError('Login failed. Please check your credentials.')
-    } finally {
-      setLoading(false)
+      setError(getFirebaseError(err))
     }
   }
-  
-  // Initialize Phone Authentication
+
+  const handleEmailRegister = async () => {
+    if (!email || !password || !auth) return
+    try {
+      await firebaseAuth.createUserWithEmailAndPassword(auth, email, password)
+    } catch (err: any) {
+      console.error(err)
+      setError(getFirebaseError(err))
+    }
+  }
+
+  const getFirebaseError = (err: any) => {
+    switch (err.code) {
+      case 'auth/invalid-email': return 'Invalid email address.'
+      case 'auth/email-already-in-use': return 'Email already in use.'
+      case 'auth/weak-password': return 'Password should be at least 6 characters.'
+      case 'auth/invalid-phone-number': return 'Invalid phone number. Format: +1234567890'
+      case 'auth/too-many-requests': return 'Too many attempts. Try again later.'
+      case 'auth/code-expired': return 'Verification code expired.'
+      case 'auth/invalid-verification-code': return 'Invalid verification code.'
+      case 'auth/network-request-failed': return 'Network issue. Check your connection.'
+      default: return 'Something went wrong. Try again.'
+    }
+  }
+
   const setupRecaptcha = () => {
-    if (!clientSideReady || !auth || !RecaptchaVerifier) return
-    
+    if (!auth || !firebaseAuth) return
+
     if (!window.recaptchaVerifier) {
       try {
-        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          'size': 'normal',
-          'callback': () => {
-            // reCAPTCHA solved, allow phone auth
-          },
+        window.recaptchaVerifier = new firebaseAuth.RecaptchaVerifier('recaptcha-container', {
+          size: 'normal',
+          callback: () => {},
           'expired-callback': () => {
-            // Response expired. Ask user to solve reCAPTCHA again.
-            setError('reCAPTCHA expired. Please try again.')
+            setError('reCAPTCHA expired. Please solve it again.')
           }
-        })
+        }, auth)
       } catch (err) {
-        console.error('Error setting up reCAPTCHA:', err)
-        setError('Failed to initialize reCAPTCHA. Please try again.')
+        console.error('reCAPTCHA error:', err)
+        setError('reCAPTCHA setup failed.')
       }
     }
   }
-  
-  // Send Phone Verification Code
-  const handleSendVerification = async () => {
-    if (loading || !clientSideReady || !auth) return
-    if (!phoneNumber) {
-      setError('Phone number is required.')
-      return
-    }
-    
-    setLoading(true)
-    setError('')
-    
-    try {
+
+  useEffect(() => {
+    if (authMethod === 'phone' && clientReady) {
       setupRecaptcha()
-      if (!window.recaptchaVerifier) {
-        throw new Error('reCAPTCHA not initialized')
-      }
-      
-      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`
-      const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier)
-      setVerificationId(confirmationResult.verificationId)
-      setShowVerification(true)
-      setError('')
-    } catch (err) {
-      console.error(err)
-      setError('Failed to send verification code. Please check your phone number.')
-      // Reset reCAPTCHA if there's an error
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear()
-          window.recaptchaVerifier = null
-        } catch (clearErr) {
-          console.error('Error clearing reCAPTCHA:', clearErr)
-        }
-      }
-    } finally {
-      setLoading(false)
     }
-  }
-  
-  // Verify Phone Code and Sign In
-  const handleVerifyCode = async () => {
-    if (loading || !clientSideReady || !auth) return
-    if (!verificationCode) {
-      setError('Verification code is required.')
+  }, [authMethod, clientReady])
+
+  const handleSendVerification = async () => {
+    if (!auth || !firebaseAuth || !phoneNumber) return
+
+    const formatted = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`
+    const regex = /^\+[1-9]\d{1,14}$/
+    if (!regex.test(formatted)) {
+      setError('Invalid phone number format. Use +1234567890')
       return
     }
-    
+
     setLoading(true)
-    setError('')
-    
     try {
-      const credential = PhoneAuthProvider.credential(verificationId, verificationCode)
-      await signInWithCredential(auth, credential)
-      // Verification successful, user will be set in AuthContext
-    } catch (err) {
-      console.error(err)
-      setError('Invalid verification code. Please try again.')
+      if (!window.recaptchaVerifier) throw new Error('reCAPTCHA not initialized.')
+      const result = await firebaseAuth.signInWithPhoneNumber(auth, formatted, window.recaptchaVerifier)
+      setVerificationId(result.verificationId)
+      setShowVerification(true)
+    } catch (err: any) {
+      console.error('Phone verification error:', err)
+      setError(getFirebaseError(err))
+      try {
+        window.recaptchaVerifier?.clear()
+        window.recaptchaVerifier = null
+      } catch {}
     } finally {
       setLoading(false)
     }
   }
 
-  // Existing nickname save functionality
-  const handleSubmit = async () => {
-    if (!user || !nickname.trim()) {
-      setError('Nickname is required.')
-      return
-    }
+  const handleVerifyCode = async () => {
+    if (!auth || !firebaseAuth || !verificationCode || !verificationId) return
+
     setLoading(true)
-    setError('')
     try {
-      const userRef = doc(db, 'players', user.uid)
-      await setDoc(userRef, {
+      const credential = firebaseAuth.PhoneAuthProvider.credential(verificationId, verificationCode)
+      await firebaseAuth.signInWithCredential(auth, credential)
+    } catch (err: any) {
+      console.error('Verification failed:', err)
+      setError(getFirebaseError(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubmitNickname = async () => {
+    if (!user || !nickname.trim()) return
+    try {
+      await setDoc(doc(db, 'players', user.uid), {
         nickname: nickname.trim(),
       }, { merge: true })
       router.push('/game')
     } catch (err) {
       console.error(err)
       setError('Failed to save nickname.')
-    } finally {
-      setLoading(false)
     }
   }
 
-  useEffect(() => {
-    const checkPlayer = async () => {
-      if (user) {
-        const docRef = doc(db, 'players', user.uid)
-        const snap = await getDoc(docRef)
-        if (snap.exists()) {
-          router.push('/game')
-        }
-      }
-    }
-    checkPlayer()
-  }, [user, router])
-
-  // Render authentication methods if not logged in
-  const renderAuthMethods = () => {
-    if (authMethod === 'login') {
-      return (
-        <div className="flex flex-col items-center gap-4 w-72">
-          <h2 className="text-xl font-semibold">Login</h2>
-          <input
-            type="email"
-            placeholder="Email"
-            className="w-full px-4 py-2 text-black rounded"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            className="w-full px-4 py-2 text-black rounded"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <button
-            className="w-full bg-mathGreen text-midnight px-6 py-3 rounded-xl disabled:opacity-50"
-            onClick={handleEmailLogin}
-            disabled={loading}
-          >
-            {loading ? 'Signing in...' : 'Sign in with Email'}
-          </button>
-          
-          <div className="w-full border-t border-gray-300 my-4"></div>
-          
-          <button
-            className="w-full bg-blue-500 text-white px-6 py-3 rounded-xl disabled:opacity-50"
-            onClick={handleGoogleLogin}
-            disabled={loading}
-          >
-            {loading ? 'Signing in...' : 'Sign in with Google'}
-          </button>
-          
-          <div className="flex justify-between w-full text-sm mt-2">
-            <button 
-              className="text-blue-400 hover:underline" 
-              onClick={() => setAuthMethod('register')}
-            >
-              Create Account
-            </button>
-            <button 
-              className="text-blue-400 hover:underline" 
-              onClick={() => setAuthMethod('phone')}
-            >
-              Sign in with Phone
-            </button>
-          </div>
-        </div>
-      )
-    } else if (authMethod === 'register') {
-      return (
-        <div className="flex flex-col items-center gap-4 w-72">
-          <h2 className="text-xl font-semibold">Register</h2>
-          <input
-            type="email"
-            placeholder="Email"
-            className="w-full px-4 py-2 text-black rounded"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            className="w-full px-4 py-2 text-black rounded"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <button
-            className="w-full bg-mathGreen text-midnight px-6 py-3 rounded-xl disabled:opacity-50"
-            onClick={handleEmailRegister}
-            disabled={loading}
-          >
-            {loading ? 'Registering...' : 'Register with Email'}
-          </button>
-          
-          <div className="flex justify-between w-full text-sm mt-4">
-            <button 
-              className="text-blue-400 hover:underline" 
-              onClick={() => setAuthMethod('login')}
-            >
-              Already have an account? Sign in
-            </button>
-          </div>
-        </div>
-      )
-    } else if (authMethod === 'phone') {
-      return (
-        <div className="flex flex-col items-center gap-4 w-72">
-          <h2 className="text-xl font-semibold">Phone Authentication</h2>
-          
-          {!showVerification ? (
-            <>
-              <input
-                type="tel"
-                placeholder="Phone Number (with country code)"
-                className="w-full px-4 py-2 text-black rounded"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-              />
-              <div id="recaptcha-container" className="my-2"></div>
-              <button
-                className="w-full bg-mathGreen text-midnight px-6 py-3 rounded-xl disabled:opacity-50"
-                onClick={handleSendVerification}
-                disabled={loading}
-              >
-                {loading ? 'Sending...' : 'Send Verification Code'}
-              </button>
-            </>
-          ) : (
-            <>
-              <input
-                type="text"
-                placeholder="Verification Code"
-                className="w-full px-4 py-2 text-black rounded"
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value)}
-              />
-              <button
-                className="w-full bg-mathGreen text-midnight px-6 py-3 rounded-xl disabled:opacity-50"
-                onClick={handleVerifyCode}
-                disabled={loading}
-              >
-                {loading ? 'Verifying...' : 'Verify Code'}
-              </button>
-            </>
-          )}
-          
-          <div className="flex justify-between w-full text-sm mt-4">
-            <button 
-              className="text-blue-400 hover:underline" 
-              onClick={() => {
-                setAuthMethod('login');
-                setShowVerification(false);
-              }}
-            >
-              Back to Login
-            </button>
-          </div>
-        </div>
+  const renderAuth = () => {
+    if (authMethod === 'phone') {
+      return !showVerification ? (
+        <>
+          <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
+                 className="p-2 text-black w-full" placeholder="+1234567890" />
+          <div id="recaptcha-container" className="my-4" />
+          <button onClick={handleSendVerification} className="bg-green-500 w-full p-2 rounded">Send Code</button>
+        </>
+      ) : (
+        <>
+          <input type="text" value={verificationCode} onChange={e => setVerificationCode(e.target.value)}
+                 className="p-2 text-black w-full" placeholder="Enter 6-digit code" />
+          <button onClick={handleVerifyCode} className="bg-green-600 w-full p-2 rounded mt-2">Verify</button>
+        </>
       )
     }
-  }
 
-  // Show loading state while checking client-side env
-  if (!clientSideReady) {
     return (
-      <main className="flex flex-col items-center justify-center min-h-screen gap-6">
-        <h1 className="text-4xl font-bold text-mathGreen">Escape From Diddy</h1>
-        <div className="text-white animate-pulse">Loading...</div>
-      </main>
+      <form onSubmit={(e) => {
+        e.preventDefault()
+        authMethod === 'register' ? handleEmailRegister() : handleEmailLogin()
+      }} className="flex flex-col gap-2 w-72">
+        <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+               className="p-2 text-black" placeholder="Email" required />
+        <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+               className="p-2 text-black" placeholder="Password" required />
+        <button type="submit" className="bg-green-500 p-2 rounded">
+          {authMethod === 'register' ? 'Register' : 'Login'}
+        </button>
+        <button type="button" onClick={handleGoogleLogin} className="bg-blue-500 text-white p-2 rounded">
+          Sign in with Google
+        </button>
+        <div className="text-sm text-center">
+          <span onClick={() => setAuthMethod(authMethod === 'register' ? 'login' : 'register')}
+                className="text-blue-400 cursor-pointer underline">
+            {authMethod === 'register' ? 'Already have an account?' : 'Need an account?'}
+          </span>
+          {' | '}
+          <span onClick={() => {
+            setAuthMethod('phone')
+            setShowVerification(false)
+          }} className="text-blue-400 cursor-pointer underline">
+            Use phone
+          </span>
+        </div>
+      </form>
     )
   }
+
+  if (!clientReady) return <div className="text-center mt-10 text-mathGreen animate-pulse">Initializing...</div>
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen gap-6">
       <h1 className="text-4xl font-bold text-mathGreen">Escape From Diddy</h1>
-
-      {error && <p className="text-red-400 text-sm">{error}</p>}
-
+      {error && <p className="text-red-500">{error}</p>}
       {!user ? (
-        renderAuthMethods()
+        renderAuth()
       ) : (
-        <div className="flex flex-col items-center gap-4">
-          <input
-            type="text"
-            placeholder="Enter your nickname"
-            className="px-4 py-2 text-black rounded"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-          />
-          <button
-            className="bg-diddyDanger px-6 py-2 text-white rounded-lg disabled:opacity-50"
-            onClick={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? 'Loading...' : 'Enter The Hustle'}
+        <div className="flex flex-col gap-4 w-72">
+          <input type="text" value={nickname} onChange={e => setNickname(e.target.value)}
+                 className="p-2 text-black" placeholder="Your nickname" />
+          <button onClick={handleSubmitNickname} className="bg-diddyDanger p-2 rounded text-white">
+            Enter The Hustle
           </button>
         </div>
       )}

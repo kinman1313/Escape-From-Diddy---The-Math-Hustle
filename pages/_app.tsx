@@ -2,8 +2,10 @@
 import '@/styles/globals.css'
 import type { AppProps } from 'next/app'
 import Head from 'next/head'
+import ImageEvents from '@/components/ImageEvents'
 import { AuthProvider } from '@/components/AuthProvider'
 import { GameProvider } from '@/components/GameProvider'
+
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
@@ -18,6 +20,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <GameProvider>
           <main className="min-h-screen bg-black text-white font-sans antialiased">
             <Component {...pageProps} />
+            <ImageEvents /> {/* 💥 inject here */}
           </main>
         </GameProvider>
       </AuthProvider>

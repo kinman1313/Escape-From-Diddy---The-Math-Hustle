@@ -1,148 +1,105 @@
 // pages/login.tsx
 
-import type { NextPage } from 'next'
-import { useState, useEffect, useRef } from 'react'
-import { useContext } from 'react'
+import { useEffect, useState, useRef, useContext } from 'react'
 import { useRouter } from 'next/router'
-import { motion, AnimatePresence } from 'framer-motion'
-import Image from 'next/image'
-import { AuthContext } from '@/components/AuthProvider'
 import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import styles from '@/styles/Login.module.css'
+import { AuthContext } from '@/components/AuthProvider'
 
-// Lazy-loaded imports to prevent SSR issues
+let firebaseAuth: any = null
 let auth: any = null
-let RecaptchaVerifier: any = null
-let GoogleAuthProvider: any = null
-let signInWithPopup: any = null
-let signInWithEmailAndPassword: any = null
-let createUserWithEmailAndPassword: any = null
-let signInWithPhoneNumber: any = null
-let PhoneAuthProvider: any = null
-let linkWithCredential: any = null
-let signInWithCredential: any = null
 
-// Initialize Firebase Auth on client-side only
 if (typeof window !== 'undefined') {
-  const firebaseAuth = require('firebase/auth')
-  // Import auth functions dynamically
-  auth = require('@/lib/firebase').getAuth()
-  RecaptchaVerifier = firebaseAuth.RecaptchaVerifier
-  GoogleAuthProvider = firebaseAuth.GoogleAuthProvider
-  signInWithPopup = firebaseAuth.signInWithPopup
-  signInWithEmailAndPassword = firebaseAuth.signInWithEmailAndPassword
-  createUserWithEmailAndPassword = firebaseAuth.createUserWithEmailAndPassword
-  signInWithPhoneNumber = firebaseAuth.signInWithPhoneNumber
-  PhoneAuthProvider = firebaseAuth.PhoneAuthProvider
-  linkWithCredential = firebaseAuth.linkWithCredential
-  signInWithCredential = firebaseAuth.signInWithCredential
+  firebaseAuth = require('firebase/auth')
+  auth = require('@/lib/firebase').getAuthInstance()
 }
 
 export default function Login() {
-  const router = useRouter()
   const { user } = useContext(AuthContext)
+  const router = useRouter()
 
+  const [clientReady, setClientReady] = useState(false)
   const [mode, setMode] = useState<'login' | 'signup' | 'phone'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [nickname, setNickname] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const [formValid, setFormValid] = useState(false)
-  const [clientSideReady, setClientSideReady] = useState(false)
-  
-  // Phone authentication states
   const [phoneNumber, setPhoneNumber] = useState('')
   const [verificationId, setVerificationId] = useState('')
   const [verificationCode, setVerificationCode] = useState('')
-  const [verificationSent, setVerificationSent] = useState(false)
   const [phoneNickname, setPhoneNickname] = useState('')
-  const [recaptchaVerifier, setRecaptchaVerifier] = useState<any | null>(null)
-  const recaptchaContainerRef = useRef<HTMLDivElement>(null)
+  const [verificationSent, setVerificationSent] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const recaptchaRef = useRef<HTMLDivElement>(null)
 
-  // Check for client-side environment
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setClientSideReady(true)
+      setClientReady(true)
     }
   }, [])
 
-  // Validate form
   useEffect(() => {
-    if (mode === 'login') {
-      setFormValid(email.includes('@') && password.length >= 6)
-    } else if (mode === 'signup') {
-      setFormValid(email.includes('@') && password.length >= 6 && nickname.length >= 3)
-    } else if (mode === 'phone') {
-      if (verificationSent) {
-        setFormValid(verificationCode.length >= 6 && phoneNickname.length >= 3)
-      } else {
-        const phoneRegex = /^\+?[1-9]\d{1,14}$/
-        setFormValid(phoneRegex.test(phoneNumber))
-      }
+    if (user) {
+      router.push('/game')
     }
-  }, [email, password, nickname, mode, phoneNumber, verificationCode, phoneNickname, verificationSent])
+  }, [user])
 
-  useEffect(() => {
-    if (user) router.push('/game')
-  }, [user, router])
+  const getFirebaseError = (err: any) => {
+    switch (err.code) {
+      case 'auth/email-already-in-use': return 'Email already registered.'
+      case 'auth/invalid-email': return 'Invalid email format.'
+      case 'auth/user-not-found': return 'User not found.'
+      case 'auth/wrong-password': return 'Incorrect password.'
+      case 'auth/weak-password': return 'Password too weak.'
+      case 'auth/invalid-phone-number': return 'Phone number must be in E.164 format.'
+      case 'auth/invalid-verification-code': return 'Incorrect verification code.'
+      case 'auth/code-expired': return 'Code expired. Try again.'
+      case 'auth/too-many-requests': return 'Too many requests. Wait and try again.'
+      default: return 'Authentication failed.'
+    }
+  }
 
-  // Initialize recaptcha when phone mode is selected
-  useEffect(() => {
-    if (!clientSideReady || !auth) return
+  const setupRecaptcha = () => {
+    if (!auth || !firebaseAuth) return
 
-    if (mode === 'phone' && !recaptchaVerifier && recaptchaContainerRef.current) {
-      try {
-        const verifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
+    try {
+      if (!window.recaptchaVerifier) {
+        window.recaptchaVerifier = new firebaseAuth.RecaptchaVerifier(recaptchaRef.current!, {
           size: 'normal',
-          callback: () => {
-            // reCAPTCHA solved, enable send verification button
-            setFormValid(true)
-          },
+          callback: () => {},
           'expired-callback': () => {
-            // Reset on expiration
-            setFormValid(false)
-            setError('reCAPTCHA expired. Please solve it again.')
+            setError('reCAPTCHA expired.')
           }
-        })
-        setRecaptchaVerifier(verifier)
-      } catch (err) {
-        console.error('Failed to initialize reCAPTCHA:', err)
-        setError('Failed to initialize reCAPTCHA. Please try a different login method.')
+        }, auth)
       }
+    } catch (err) {
+      console.error('reCAPTCHA error:', err)
+      setError('reCAPTCHA init failed.')
     }
+  }
 
-    // Clean up recaptcha when mode changes
+  useEffect(() => {
+    if (mode === 'phone' && clientReady) {
+      setupRecaptcha()
+    }
     return () => {
-      if (recaptchaVerifier && mode !== 'phone') {
+      if (window.recaptchaVerifier && mode !== 'phone') {
         try {
-          recaptchaVerifier.clear()
-        } catch (err) {
-          console.error('Error clearing reCAPTCHA:', err)
-        }
-        setRecaptchaVerifier(null)
+          window.recaptchaVerifier.clear()
+        } catch {}
+        window.recaptchaVerifier = null
       }
     }
-  }, [mode, clientSideReady, recaptchaVerifier])
+  }, [mode, clientReady])
 
   const loginWithGoogle = async () => {
-    if (loading || !clientSideReady || !auth) return
-    
-    setLoading(true)
-    
+    if (!auth || !firebaseAuth) return
     try {
-      const provider = new GoogleAuthProvider()
-      const result = await signInWithPopup(auth, provider)
-      
-      // Check if this is a new user and set initial data if needed
-      const userRef = doc(db, 'players', result.user.uid)
-      const userDoc = await getDoc(userRef)
-      
+      const provider = new firebaseAuth.GoogleAuthProvider()
+      const result = await firebaseAuth.signInWithPopup(auth, provider)
+      const userDoc = await getDoc(doc(db, 'players', result.user.uid))
       if (!userDoc.exists()) {
-        // New Google user, set up their account
-        await setDoc(userRef, {
+        await setDoc(doc(db, 'players', result.user.uid), {
           nickname: result.user.displayName || 'Player',
           email: result.user.email,
           streak: 0,
@@ -159,32 +116,19 @@ export default function Login() {
         })
       }
     } catch (err: any) {
-      if (err.code !== 'auth/cancelled-popup-request') {
-        console.error('Login failed:', err)
-        if (err.code === 'auth/popup-blocked') {
-          setError('Please allow popups for this site to use Google login.')
-        } else {
-          setError('Google login failed. Please try again.')
-        }
-      }
-    } finally {
-      setLoading(false)
+      console.error('Google auth error:', err)
+      setError(getFirebaseError(err))
     }
   }
 
-  const handleAuth = async () => {
-    if (loading || !formValid || !clientSideReady || !auth) return
-    
-    setError('')
-    setLoading(true)
-    
+  const handleEmailAuth = async () => {
+    if (!auth || !firebaseAuth) return
     try {
       if (mode === 'signup') {
-        const userCred = await createUserWithEmailAndPassword(auth, email, password)
-        const user = userCred.user
-        await setDoc(doc(db, 'players', user.uid), {
+        const cred = await firebaseAuth.createUserWithEmailAndPassword(auth, email, password)
+        await setDoc(doc(db, 'players', cred.user.uid), {
           nickname,
-          email: user.email,
+          email: cred.user.email,
           streak: 0,
           proximity: 0,
           score: 0,
@@ -192,118 +136,56 @@ export default function Login() {
           avatar: 'default',
           powerups: {
             timeFreeze: 2,
-            fiftyFifty: 1, 
+            fiftyFifty: 1,
             repellent: 1
           },
           created: new Date()
         })
       } else {
-        await signInWithEmailAndPassword(auth, email, password)
+        await firebaseAuth.signInWithEmailAndPassword(auth, email, password)
       }
     } catch (err: any) {
-      console.error('Auth error:', err)
-      // Provide more specific error messages
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        setError('Invalid email or password.')
-      } else if (err.code === 'auth/email-already-in-use') {
-        setError('That email is already registered. Try logging in instead.')
-      } else if (err.code === 'auth/weak-password') {
-        setError('Password should be at least 6 characters.')
-      } else {
-        setError('Authentication failed. Please check your information and try again.')
-      }
-    } finally {
-      setLoading(false)
+      console.error('Email auth error:', err)
+      setError(getFirebaseError(err))
     }
   }
 
-  // Send phone verification code
   const handleSendVerification = async () => {
-    if (loading || !formValid || !clientSideReady || !auth) return
-    
-    setError('')
-    setLoading(true)
-    
+    if (!auth || !firebaseAuth) return
+
+    const formatted = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`
+    const regex = /^\+[1-9]\d{1,14}$/
+    if (!regex.test(formatted)) {
+      setError('Use E.164 format: +1234567890')
+      return
+    }
+
     try {
-      if (!recaptchaVerifier) {
-        throw new Error('reCAPTCHA not initialized')
-      }
-      
-      // Format phone number if needed
-      const formattedNumber = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`
-      
-      const confirmationResult = await signInWithPhoneNumber(
-        auth,
-        formattedNumber,
-        recaptchaVerifier
-      )
-      
-      setVerificationId(confirmationResult.verificationId)
+      if (!window.recaptchaVerifier) throw new Error('reCAPTCHA missing')
+      const result = await firebaseAuth.signInWithPhoneNumber(auth, formatted, window.recaptchaVerifier)
+      setVerificationId(result.verificationId)
       setVerificationSent(true)
       setError('')
     } catch (err: any) {
-      console.error('Phone verification error:', err)
-      if (err.code === 'auth/invalid-phone-number') {
-        setError('Invalid phone number. Please include country code (e.g., +1 for US).')
-      } else if (err.code === 'auth/quota-exceeded') {
-        setError('Too many verification attempts. Please try again later.')
-      } else {
-        setError('Failed to send verification code. Please try again.')
-      }
-      
-      // Reset reCAPTCHA on error
-      if (recaptchaVerifier) {
-        try {
-          recaptchaVerifier.clear()
-          setRecaptchaVerifier(null)
-          
-          // Reinitialize the captcha
-          if (recaptchaContainerRef.current) {
-            const newVerifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
-              size: 'normal',
-              callback: () => {
-                setFormValid(true)
-              },
-              'expired-callback': () => {
-                setFormValid(false)
-              }
-            })
-            setRecaptchaVerifier(newVerifier)
-          }
-        } catch (clearErr) {
-          console.error('Error resetting reCAPTCHA:', clearErr)
-        }
-      }
-    } finally {
-      setLoading(false)
+      console.error('Phone send error:', err)
+      setError(getFirebaseError(err))
+      try {
+        window.recaptchaVerifier?.clear()
+        window.recaptchaVerifier = null
+      } catch {}
     }
   }
 
-  // Verify phone code and sign in
   const handleVerifyCode = async () => {
-    if (loading || !formValid || !clientSideReady || !auth) return
-    
-    setError('')
-    setLoading(true)
-    
+    if (!auth || !firebaseAuth) return
     try {
-      // Create the credential
-      const phoneCredential = PhoneAuthProvider.credential(
-        verificationId,
-        verificationCode
-      )
-      
-      // Sign in with the credential
-      const userCredential = await signInWithCredential(auth, phoneCredential)
-      const user = userCredential.user
-      
-      // Check if this is a new user and set up their profile
-      const userRef = doc(db, 'players', user.uid)
-      const userDoc = await getDoc(userRef)
-      
+      const credential = firebaseAuth.PhoneAuthProvider.credential(verificationId, verificationCode)
+      const userCred = await firebaseAuth.signInWithCredential(auth, credential)
+      const user = userCred.user
+
+      const userDoc = await getDoc(doc(db, 'players', user.uid))
       if (!userDoc.exists()) {
-        // New phone user, set up their account
-        await setDoc(userRef, {
+        await setDoc(doc(db, 'players', user.uid), {
           nickname: phoneNickname,
           phoneNumber: user.phoneNumber,
           streak: 0,
@@ -320,412 +202,80 @@ export default function Login() {
         })
       }
     } catch (err: any) {
-      console.error('Phone verification error:', err)
-      if (err.code === 'auth/invalid-verification-code') {
-        setError('Invalid verification code. Please try again.')
-      } else if (err.code === 'auth/code-expired') {
-        setError('Verification code has expired. Please request a new one.')
-        setVerificationSent(false)
-      } else {
-        setError('Verification failed. Please try again.')
-      }
-    } finally {
-      setLoading(false)
+      console.error('Code verification error:', err)
+      setError(getFirebaseError(err))
     }
   }
 
-  // Handle Enter key press
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && formValid) {
-      if (mode === 'phone') {
-        if (verificationSent) {
-          handleVerifyCode()
-        } else {
-          handleSendVerification()
-        }
-      } else {
-        handleAuth()
-      }
-    }
-  }
+  const renderPhoneAuth = () => (
+    <div className="flex flex-col gap-3 w-80">
+      {!verificationSent ? (
+        <>
+          <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
+                 className="p-2 rounded text-black" placeholder="+1234567890" />
+          <div ref={recaptchaRef} className="my-2" />
+          <button onClick={handleSendVerification} className="bg-green-500 p-2 rounded text-white">
+            Send Verification Code
+          </button>
+        </>
+      ) : (
+        <>
+          <input type="text" value={verificationCode} onChange={e => setVerificationCode(e.target.value)}
+                 className="p-2 rounded text-black" placeholder="Enter code" />
+          <input type="text" value={phoneNickname} onChange={e => setPhoneNickname(e.target.value)}
+                 className="p-2 rounded text-black" placeholder="Your nickname" />
+          <button onClick={handleVerifyCode} className="bg-green-600 p-2 rounded text-white">
+            Verify & Sign In
+          </button>
+        </>
+      )}
+    </div>
+  )
 
-  // Reset phone verification
-  const resetPhoneVerification = () => {
-    setVerificationSent(false)
-    setVerificationCode('')
-    setVerificationId('')
-    setPhoneNumber('')
-    setPhoneNickname('')
-    
-    // Reset and reinitialize recaptcha
-    if (recaptchaVerifier && clientSideReady && auth) {
-      try {
-        recaptchaVerifier.clear()
-        setRecaptchaVerifier(null)
-        
-        if (recaptchaContainerRef.current) {
-          const newVerifier = new RecaptchaVerifier(auth, recaptchaContainerRef.current, {
-            size: 'normal',
-            callback: () => {
-              setFormValid(true)
-            },
-            'expired-callback': () => {
-              setFormValid(false)
-            }
-          })
-          setRecaptchaVerifier(newVerifier)
-        }
-      } catch (err) {
-        console.error('Error resetting reCAPTCHA:', err)
-      }
-    }
-  }
+  const renderEmailAuth = () => (
+    <form onSubmit={e => {
+      e.preventDefault()
+      handleEmailAuth()
+    }} className="flex flex-col gap-3 w-80">
+      <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+             className="p-2 rounded text-black" placeholder="Email" required />
+      <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+             className="p-2 rounded text-black" placeholder="Password" required />
+      {mode === 'signup' && (
+        <input type="text" value={nickname} onChange={e => setNickname(e.target.value)}
+               className="p-2 rounded text-black" placeholder="Nickname" />
+      )}
+      <button type="submit" className="bg-green-500 p-2 rounded text-white">
+        {mode === 'signup' ? 'Sign Up' : 'Login'}
+      </button>
+      <button type="button" onClick={loginWithGoogle} className="bg-blue-500 p-2 rounded text-white">
+        Continue with Google
+      </button>
+    </form>
+  )
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1,
-      transition: { 
-        staggerChildren: 0.1,
-        delayChildren: 0.2
-      }
-    }
-  }
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { y: 0, opacity: 1 }
-  }
-
-  // If we're server-side or auth is not initialized yet, show a simple loading state
-  if (!clientSideReady) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.backgroundPattern} />
-        <div className="flex items-center justify-center h-screen">
-          <div className="text-mathGreen text-xl animate-pulse">Loading...</div>
-        </div>
-      </div>
-    )
-  }
+  if (!clientReady) return <div className="text-center mt-12 text-lg text-mathGreen animate-pulse">Loading...</div>
 
   return (
-    <div className={styles.container}>
-      {/* Background with math patterns */}
-      <div className={styles.backgroundPattern}></div>
-      
-      {/* Logo/Title section */}
-      <motion.div
-        className={styles.logoSection}
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-      >
-        <h1 className={styles.title}>Escape from Diddy</h1>
-        <p className={styles.subtitle}>Math, Memes and Mayhem</p>
-      </motion.div>
-
-      {/* Form container */}
-      <motion.div 
-        className={styles.formContainer}
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-      >
-        <div className={styles.tabContainer}>
-          <button 
-            className={`${styles.tabButton} ${mode === 'login' ? styles.activeTab : ''}`}
-            onClick={() => setMode('login')}
-          >
-            Login
-          </button>
-          <button 
-            className={`${styles.tabButton} ${mode === 'signup' ? styles.activeTab : ''}`}
-            onClick={() => setMode('signup')}
-          >
-            Sign Up
-          </button>
-          <button 
-            className={`${styles.tabButton} ${mode === 'phone' ? styles.activeTab : ''}`}
-            onClick={() => {
-              setMode('phone')
-              resetPhoneVerification()
-            }}
-          >
-            Phone
-          </button>
-        </div>
-
-        <AnimatePresence mode="wait">
-          <motion.div 
-            key={mode}
-            initial={{ opacity: 0, x: mode === 'login' ? -20 : 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: mode === 'login' ? 20 : -20 }}
-            transition={{ duration: 0.3 }}
-            className={styles.formFields}
-          >
-            {error && (
-              <motion.div 
-                className={styles.errorMessage}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
-                {error}
-              </motion.div>
-            )}
-
-            {mode === 'phone' ? (
-              // Phone authentication form
-              !verificationSent ? (
-                // Phone number entry step
-                <>
-                  <motion.div variants={itemVariants} className={styles.inputGroup}>
-                    <label htmlFor="phoneNumber" className={styles.inputLabel}>Phone Number</label>
-                    <div className={styles.inputContainer}>
-                      <span className={styles.inputIcon}>📱</span>
-                      <input
-                        id="phoneNumber"
-                        type="tel"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className={styles.input}
-                        placeholder="+1 123 456 7890"
-                      />
-                    </div>
-                    <p className={styles.inputHelp}>Include country code (e.g., +1 for US)</p>
-                  </motion.div>
-
-                  <motion.div 
-                    variants={itemVariants} 
-                    ref={recaptchaContainerRef}
-                    className={styles.recaptchaContainer}
-                  ></motion.div>
-
-                  <motion.button
-                    variants={itemVariants}
-                    onClick={handleSendVerification}
-                    disabled={loading || !formValid}
-                    className={styles.authButton}
-                  >
-                    {loading ? (
-                      <div className={styles.spinner}></div>
-                    ) : 'Send Verification Code'}
-                  </motion.button>
-                </>
-              ) : (
-                // Verification code step
-                <>
-                  <motion.div variants={itemVariants} className={styles.inputGroup}>
-                    <label htmlFor="verificationCode" className={styles.inputLabel}>Verification Code</label>
-                    <div className={styles.inputContainer}>
-                      <span className={styles.inputIcon}>🔢</span>
-                      <input
-                        id="verificationCode"
-                        type="text"
-                        value={verificationCode}
-                        onChange={(e) => setVerificationCode(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className={styles.input}
-                        placeholder="Enter 6-digit code"
-                      />
-                    </div>
-                  </motion.div>
-
-                  <motion.div variants={itemVariants} className={styles.inputGroup}>
-                    <label htmlFor="phoneNickname" className={styles.inputLabel}>Nickname</label>
-                    <div className={styles.inputContainer}>
-                      <span className={styles.inputIcon}>🏷️</span>
-                      <input
-                        id="phoneNickname"
-                        type="text"
-                        value={phoneNickname}
-                        onChange={(e) => setPhoneNickname(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className={styles.input}
-                        placeholder="Choose a nickname"
-                      />
-                    </div>
-                  </motion.div>
-
-                  <motion.button
-                    variants={itemVariants}
-                    onClick={handleVerifyCode}
-                    disabled={loading || !formValid}
-                    className={styles.authButton}
-                  >
-                    {loading ? (
-                      <div className={styles.spinner}></div>
-                    ) : 'Verify & Sign In'}
-                  </motion.button>
-
-                  <motion.button
-                    variants={itemVariants}
-                    onClick={resetPhoneVerification}
-                    disabled={loading}
-                    className={styles.secondaryButton}
-                  >
-                    Back to Phone Entry
-                  </motion.button>
-                </>
-              )
-            ) : (
-              // Email/password authentication forms
-              <>
-                <motion.div variants={itemVariants} className={styles.inputGroup}>
-                  <label htmlFor="email" className={styles.inputLabel}>Email</label>
-                  <div className={styles.inputContainer}>
-                    <span className={styles.inputIcon}>📧</span>
-                    <input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      className={styles.input}
-                      placeholder="your-email@example.com"
-                    />
-                  </div>
-                </motion.div>
-
-                <motion.div variants={itemVariants} className={styles.inputGroup}>
-                  <label htmlFor="password" className={styles.inputLabel}>Password</label>
-                  <div className={styles.inputContainer}>
-                    <span className={styles.inputIcon}>🔑</span>
-                    <input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      className={styles.input}
-                      placeholder="••••••••"
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className={styles.passwordToggle}
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? "👁️" : "👁️‍🗨️"}
-                    </button>
-                  </div>
-                  {mode === 'login' && (
-                    <button className={styles.forgotPassword}>
-                      Forgot Password?
-                    </button>
-                  )}
-                </motion.div>
-
-                {mode === 'signup' && (
-                  <motion.div variants={itemVariants} className={styles.inputGroup}>
-                    <label htmlFor="nickname" className={styles.inputLabel}>Nickname</label>
-                    <div className={styles.inputContainer}>
-                      <span className={styles.inputIcon}>🏷️</span>
-                      <input
-                        id="nickname"
-                        type="text"
-                        value={nickname}
-                        onChange={(e) => setNickname(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className={styles.input}
-                        placeholder="MathWizard99"
-                      />
-                    </div>
-                  </motion.div>
-                )}
-
-                <motion.button
-                  variants={itemVariants}
-                  onClick={handleAuth}
-                  disabled={loading || !formValid}
-                  className={styles.authButton}
-                >
-                  {loading ? (
-                    <div className={styles.spinner}></div>
-                  ) : mode === 'signup' ? 'Create Account' : 'Log In'}
-                </motion.button>
-
-                <motion.div variants={itemVariants} className={styles.divider}>
-                  <span>or</span>
-                </motion.div>
-
-                <motion.button
-                  variants={itemVariants}
-                  onClick={loginWithGoogle}
-                  disabled={loading}
-                  className={styles.googleButton}
-                >
-                  <div className={styles.googleIcon}>G</div>
-                  {loading ? 'Connecting...' : 'Continue with Google'}
-                </motion.button>
-              </>
-            )}
-          </motion.div>
-        </AnimatePresence>
-
-        <motion.div variants={itemVariants} className={styles.formFooter}>
-          {mode === 'login' ? (
-            <p>
-              Don't have an account?{' '}
-              <button 
-                onClick={() => setMode('signup')}
-                className={styles.switchModeLink}
-              >
-                Sign up
-              </button>
-              {' or '}
-              <button 
-                onClick={() => {
-                  setMode('phone')
-                  resetPhoneVerification()
-                }}
-                className={styles.switchModeLink}
-              >
-                use phone
-              </button>
-            </p>
-          ) : mode === 'signup' ? (
-            <p>
-              Already have an account?{' '}
-              <button 
-                onClick={() => setMode('login')}
-                className={styles.switchModeLink}
-              >
-                Log in
-              </button>
-              {' or '}
-              <button 
-                onClick={() => {
-                  setMode('phone')
-                  resetPhoneVerification()
-                }}
-                className={styles.switchModeLink}
-              >
-                use phone
-              </button>
-            </p>
-          ) : (
-            <p>
-              Prefer email auth?{' '}
-              <button 
-                onClick={() => setMode('login')}
-                className={styles.switchModeLink}
-              >
-                Log in
-              </button>
-              {' or '}
-              <button 
-                onClick={() => setMode('signup')}
-                className={styles.switchModeLink}
-              >
-                sign up
-              </button>
-            </p>
-          )}
-        </motion.div>
-      </motion.div>
+    <div className="min-h-screen flex flex-col items-center justify-center p-6">
+      <h1 className="text-3xl font-bold text-mathGreen mb-4">Escape From Diddy</h1>
+      {error && <p className="text-red-500 text-sm">{error}</p>}
+      {mode === 'phone' ? renderPhoneAuth() : renderEmailAuth()}
+      <div className="text-sm mt-4">
+        {mode === 'login' ? (
+          <>
+            No account? <span onClick={() => setMode('signup')} className="text-blue-400 underline cursor-pointer">Sign up</span> or use <span onClick={() => setMode('phone')} className="text-blue-400 underline cursor-pointer">phone</span>
+          </>
+        ) : mode === 'signup' ? (
+          <>
+            Already registered? <span onClick={() => setMode('login')} className="text-blue-400 underline cursor-pointer">Log in</span> or use <span onClick={() => setMode('phone')} className="text-blue-400 underline cursor-pointer">phone</span>
+          </>
+        ) : (
+          <>
+            Prefer email? <span onClick={() => setMode('login')} className="text-blue-400 underline cursor-pointer">Login</span> or <span onClick={() => setMode('signup')} className="text-blue-400 underline cursor-pointer">Sign up</span>
+          </>
+        )}
+      </div>
     </div>
   )
 }
