@@ -1,7 +1,7 @@
 // components/AuthProvider.tsx
-import { onAuthStateChanged, User } from 'firebase/auth'
+import { onAuthStateChanged, User, getAuth } from 'firebase/auth'
 import { createContext, useEffect, useState, ReactNode } from 'react'
-import { getAuth } from '@/lib/firebase'
+// import { getAuth } from '@/lib/firebase'
 
 export const AuthContext = createContext<{ user: User | null }>({ user: null })
 
