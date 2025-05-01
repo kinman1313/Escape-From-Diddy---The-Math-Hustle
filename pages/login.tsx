@@ -1,24 +1,31 @@
 // pages/login.tsx
 
-import { useEffect, useState, useRef, useContext } from 'react'
+import { useState, useEffect, useContext } from 'react'
 import { useRouter } from 'next/router'
 import { doc, setDoc, getDoc } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { db, auth, googleProvider } from '@/lib/firebase'
+import {
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  RecaptchaVerifier,
+  PhoneAuthProvider,
+  signInWithCredential,
+  signInWithPhoneNumber // <-- add this import
+} from 'firebase/auth'
 import { AuthContext } from '@/components/AuthProvider'
 
-let firebaseAuth: any = null
-let auth: any = null
-
-if (typeof window !== 'undefined') {
-  firebaseAuth = require('firebase/auth')
-  auth = require('@/lib/firebase').getAuthInstance()
+// Add this before your component
+declare global {
+  interface Window {
+    recaptchaVerifier?: any;
+  }
 }
 
 export default function Login() {
   const { user } = useContext(AuthContext)
   const router = useRouter()
 
-  const [clientReady, setClientReady] = useState(false)
   const [mode, setMode] = useState<'login' | 'signup' | 'phone'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -28,9 +35,8 @@ export default function Login() {
   const [verificationCode, setVerificationCode] = useState('')
   const [phoneNickname, setPhoneNickname] = useState('')
   const [verificationSent, setVerificationSent] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const recaptchaRef = useRef<HTMLDivElement>(null)
+  const [clientReady, setClientReady] = useState(false)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -51,30 +57,25 @@ export default function Login() {
       case 'auth/user-not-found': return 'User not found.'
       case 'auth/wrong-password': return 'Incorrect password.'
       case 'auth/weak-password': return 'Password too weak.'
-      case 'auth/invalid-phone-number': return 'Phone number must be in E.164 format.'
-      case 'auth/invalid-verification-code': return 'Incorrect verification code.'
-      case 'auth/code-expired': return 'Code expired. Try again.'
-      case 'auth/too-many-requests': return 'Too many requests. Wait and try again.'
+      case 'auth/invalid-phone-number': return 'Phone must be in E.164 format.'
+      case 'auth/invalid-verification-code': return 'Invalid verification code.'
+      case 'auth/code-expired': return 'Code expired.'
+      case 'auth/too-many-requests': return 'Too many requests. Try again later.'
       default: return 'Authentication failed.'
     }
   }
 
   const setupRecaptcha = () => {
-    if (!auth || !firebaseAuth) return
-
-    try {
-      if (!window.recaptchaVerifier) {
-        window.recaptchaVerifier = new firebaseAuth.RecaptchaVerifier(recaptchaRef.current!, {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(
+        auth, // Pass the Auth instance as the first argument
+        'recaptcha-container', // Pass the container ID as the second argument
+        {
           size: 'normal',
           callback: () => {},
-          'expired-callback': () => {
-            setError('reCAPTCHA expired.')
-          }
-        }, auth)
-      }
-    } catch (err) {
-      console.error('reCAPTCHA error:', err)
-      setError('reCAPTCHA init failed.')
+          'expired-callback': () => setError('reCAPTCHA expired.')
+        }
+      )
     }
   }
 
@@ -82,21 +83,11 @@ export default function Login() {
     if (mode === 'phone' && clientReady) {
       setupRecaptcha()
     }
-    return () => {
-      if (window.recaptchaVerifier && mode !== 'phone') {
-        try {
-          window.recaptchaVerifier.clear()
-        } catch {}
-        window.recaptchaVerifier = null
-      }
-    }
   }, [mode, clientReady])
 
   const loginWithGoogle = async () => {
-    if (!auth || !firebaseAuth) return
     try {
-      const provider = new firebaseAuth.GoogleAuthProvider()
-      const result = await firebaseAuth.signInWithPopup(auth, provider)
+      const result = await signInWithPopup(auth, googleProvider)
       const userDoc = await getDoc(doc(db, 'players', result.user.uid))
       if (!userDoc.exists()) {
         await setDoc(doc(db, 'players', result.user.uid), {
@@ -122,10 +113,9 @@ export default function Login() {
   }
 
   const handleEmailAuth = async () => {
-    if (!auth || !firebaseAuth) return
     try {
       if (mode === 'signup') {
-        const cred = await firebaseAuth.createUserWithEmailAndPassword(auth, email, password)
+        const cred = await createUserWithEmailAndPassword(auth, email, password)
         await setDoc(doc(db, 'players', cred.user.uid), {
           nickname,
           email: cred.user.email,
@@ -142,7 +132,7 @@ export default function Login() {
           created: new Date()
         })
       } else {
-        await firebaseAuth.signInWithEmailAndPassword(auth, email, password)
+        await signInWithEmailAndPassword(auth, email, password)
       }
     } catch (err: any) {
       console.error('Email auth error:', err)
@@ -151,8 +141,6 @@ export default function Login() {
   }
 
   const handleSendVerification = async () => {
-    if (!auth || !firebaseAuth) return
-
     const formatted = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`
     const regex = /^\+[1-9]\d{1,14}$/
     if (!regex.test(formatted)) {
@@ -162,10 +150,9 @@ export default function Login() {
 
     try {
       if (!window.recaptchaVerifier) throw new Error('reCAPTCHA missing')
-      const result = await firebaseAuth.signInWithPhoneNumber(auth, formatted, window.recaptchaVerifier)
+      const result = await signInWithPhoneNumber(auth, formatted, window.recaptchaVerifier)
       setVerificationId(result.verificationId)
       setVerificationSent(true)
-      setError('')
     } catch (err: any) {
       console.error('Phone send error:', err)
       setError(getFirebaseError(err))
@@ -177,10 +164,9 @@ export default function Login() {
   }
 
   const handleVerifyCode = async () => {
-    if (!auth || !firebaseAuth) return
     try {
-      const credential = firebaseAuth.PhoneAuthProvider.credential(verificationId, verificationCode)
-      const userCred = await firebaseAuth.signInWithCredential(auth, credential)
+      const credential = PhoneAuthProvider.credential(verificationId, verificationCode)
+      const userCred = await signInWithCredential(auth, credential)
       const user = userCred.user
 
       const userDoc = await getDoc(doc(db, 'players', user.uid))
@@ -213,7 +199,7 @@ export default function Login() {
         <>
           <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
                  className="p-2 rounded text-black" placeholder="+1234567890" />
-          <div ref={recaptchaRef} className="my-2" />
+          <div id="recaptcha-container" className="my-2" />
           <button onClick={handleSendVerification} className="bg-green-500 p-2 rounded text-white">
             Send Verification Code
           </button>

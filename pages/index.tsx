@@ -1,23 +1,23 @@
 // pages/index.tsx
-
 import { useEffect, useState, useContext } from 'react'
 import { useRouter } from 'next/router'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { db, auth, googleProvider } from '@/lib/firebase'
+import {
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  PhoneAuthProvider,
+  signInWithCredential,
+  RecaptchaVerifier,
+  signInWithPhoneNumber // <-- add this import
+} from 'firebase/auth'
 import { AuthContext } from '@/components/AuthProvider'
 
 declare global {
   interface Window {
     recaptchaVerifier?: any
   }
-}
-
-let auth: any = null
-let firebaseAuth: any = null
-
-if (typeof window !== 'undefined') {
-  firebaseAuth = require('firebase/auth')
-  auth = require('@/lib/firebase').getAuthInstance()
 }
 
 export default function Home() {
@@ -54,10 +54,8 @@ export default function Home() {
   }, [user])
 
   const handleGoogleLogin = async () => {
-    if (!auth || !firebaseAuth) return
-    const provider = new firebaseAuth.GoogleAuthProvider()
     try {
-      await firebaseAuth.signInWithPopup(auth, provider)
+      await signInWithPopup(auth, googleProvider)
     } catch (err) {
       console.error('Google login failed:', err)
       setError('Google login failed.')
@@ -65,9 +63,9 @@ export default function Home() {
   }
 
   const handleEmailLogin = async () => {
-    if (!email || !password || !auth) return
+    if (!email || !password) return
     try {
-      await firebaseAuth.signInWithEmailAndPassword(auth, email, password)
+      await signInWithEmailAndPassword(auth, email, password)
     } catch (err: any) {
       console.error(err)
       setError(getFirebaseError(err))
@@ -75,9 +73,9 @@ export default function Home() {
   }
 
   const handleEmailRegister = async () => {
-    if (!email || !password || !auth) return
+    if (!email || !password) return
     try {
-      await firebaseAuth.createUserWithEmailAndPassword(auth, email, password)
+      await createUserWithEmailAndPassword(auth, email, password)
     } catch (err: any) {
       console.error(err)
       setError(getFirebaseError(err))
@@ -99,17 +97,19 @@ export default function Home() {
   }
 
   const setupRecaptcha = () => {
-    if (!auth || !firebaseAuth) return
-
     if (!window.recaptchaVerifier) {
       try {
-        window.recaptchaVerifier = new firebaseAuth.RecaptchaVerifier('recaptcha-container', {
-          size: 'normal',
-          callback: () => {},
-          'expired-callback': () => {
-            setError('reCAPTCHA expired. Please solve it again.')
+        window.recaptchaVerifier = new RecaptchaVerifier(
+          auth, // <-- pass auth as the first argument
+          'recaptcha-container', // <-- container ID as the second argument
+          {
+            size: 'normal',
+            callback: () => {},
+            'expired-callback': () => {
+              setError('reCAPTCHA expired. Please solve it again.')
+            }
           }
-        }, auth)
+        )
       } catch (err) {
         console.error('reCAPTCHA error:', err)
         setError('reCAPTCHA setup failed.')
@@ -124,7 +124,7 @@ export default function Home() {
   }, [authMethod, clientReady])
 
   const handleSendVerification = async () => {
-    if (!auth || !firebaseAuth || !phoneNumber) return
+    if (!phoneNumber) return
 
     const formatted = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`
     const regex = /^\+[1-9]\d{1,14}$/
@@ -136,7 +136,7 @@ export default function Home() {
     setLoading(true)
     try {
       if (!window.recaptchaVerifier) throw new Error('reCAPTCHA not initialized.')
-      const result = await firebaseAuth.signInWithPhoneNumber(auth, formatted, window.recaptchaVerifier)
+      const result = await signInWithPhoneNumber(auth, formatted, window.recaptchaVerifier)
       setVerificationId(result.verificationId)
       setShowVerification(true)
     } catch (err: any) {
@@ -152,12 +152,12 @@ export default function Home() {
   }
 
   const handleVerifyCode = async () => {
-    if (!auth || !firebaseAuth || !verificationCode || !verificationId) return
+    if (!verificationCode || !verificationId) return
 
     setLoading(true)
     try {
-      const credential = firebaseAuth.PhoneAuthProvider.credential(verificationId, verificationCode)
-      await firebaseAuth.signInWithCredential(auth, credential)
+      const credential = PhoneAuthProvider.credential(verificationId, verificationCode)
+      await signInWithCredential(auth, credential)
     } catch (err: any) {
       console.error('Verification failed:', err)
       setError(getFirebaseError(err))
@@ -235,8 +235,7 @@ export default function Home() {
     <main className="flex flex-col items-center justify-center min-h-screen gap-6">
       <h1 className="text-4xl font-bold text-mathGreen">Escape From Diddy</h1>
       {error && <p className="text-red-500">{error}</p>}
-      {!user ? (
-        renderAuth()
+      {!user ? (         renderAuth()
       ) : (
         <div className="flex flex-col gap-4 w-72">
           <input type="text" value={nickname} onChange={e => setNickname(e.target.value)}
