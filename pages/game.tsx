@@ -134,14 +134,14 @@ export default function GamePage() {
     const sound = new Howl({ src: ['/sounds/bad-boy.m4a'], volume: 0.5 })
     sound.play()
   }
-
-  if (!user) {
-    return (
-      <main className="flex items-center justify-center min-h-screen text-mathGreen text-xl animate-pulse">
-        Loading Game...
-      </main>
-    )
-  }
+  
+if (!user) {
+  return (
+    <main className="flex items-center justify-center min-h-screen text-mathGreen text-xl animate-pulse pt-24">
+      Loading Game...
+    </main>
+  )
+}
 
   return (
     <main className="min-h-screen bg-black text-white p-6 flex flex-col items-center">

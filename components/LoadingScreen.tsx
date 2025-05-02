@@ -30,14 +30,26 @@ export default function LoadingScreen() {
   }, [])
 
   useEffect(() => {
-    if (!playingAudio) {
-      const audio = new Audio('/sounds/everybyoutake.mp3')
-      audio.loop = true
-      audio.volume = 0.2
-      audio.play().catch(err => console.error('Audio play error:', err))
-      setPlayingAudio(true)
+  if (!playingAudio) {
+    const audio = new Audio('/sounds/everybyoutake.mp3')
+    audio.volume = 0.2
+    audio.play().catch(err => console.error('Audio play error:', err))
+    setPlayingAudio(true)
+
+    // 💥 Stop after 9 seconds
+    const timeout = setTimeout(() => {
+      audio.pause()
+      audio.currentTime = 0
+      setPlayingAudio(false) // Optionally reset if needed
+    }, 9000)
+
+    return () => {
+      clearTimeout(timeout)
+      audio.pause()
+      audio.currentTime = 0
     }
-  }, [playingAudio])
+  }
+}, [playingAudio])
 
   return (
     <div className="flex flex-col justify-center items-center min-h-screen bg-black text-mathGreen relative overflow-hidden">

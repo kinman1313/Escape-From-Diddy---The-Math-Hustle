@@ -1,3 +1,4 @@
+/* Animations */
 @keyframes flyPopTop {
   0% {
     transform: translateY(-100px) scale(0.5);
@@ -43,22 +44,40 @@
   }
 }
 
-/* Default streak class */
-.streak {
-  color: #00FF00;
-  font-weight: bold;
-  font-size: 2rem;
-  text-align: center;
+/* Streak container */
+.streakContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   margin-top: 1rem;
 }
 
-/* Different directions */
-.flyTop {
+/* Streak counter */
+.streakCounter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 2rem;
+  font-weight: bold;
+  color: #00FF00;
+}
+
+/* Animated +1 */
+.streakIncrement {
+  color: #00FF00;
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+/* Milestone message */
+.streakMilestone {
+  font-size: 1.75rem;
+  color: #FFD700;
+  margin-top: 1rem;
+}
+
+/* Active (flashy) */
+.streakActive {
   animation: flyPopTop 0.8s ease-out;
-}
-.flyLeft {
-  animation: flyPopLeft 0.8s ease-out;
-}
-.flyRight {
-  animation: flyPopRight 0.8s ease-out;
 }
