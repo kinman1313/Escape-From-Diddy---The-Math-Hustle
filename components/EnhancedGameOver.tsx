@@ -52,7 +52,7 @@ const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`;
               <>
                 <Confetti width={width} height={height} recycle={false} numberOfPieces={200} />
                 <motion.p
-                  className="text-2xl text-pink-400 font-bold mb-6"
+    className="text-2xl text-pink-400 font-bold mb-6"
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: 'spring', stiffness: 500 }}

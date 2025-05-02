@@ -3,6 +3,9 @@ import { onAuthStateChanged, User, getAuth } from 'firebase/auth'
 import { createContext, useEffect, useState, ReactNode } from 'react'
 // import { getAuth } from '@/lib/firebase'
 
+// Utility function to check if the code is running on the client
+const isClient = () => typeof window !== 'undefined'
+
 export const AuthContext = createContext<{ user: User | null }>({ user: null })
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -11,18 +14,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     // Only run auth state listener on the client
-    if (typeof window !== 'undefined') {
+    if (isClient()) {
       const auth = getAuth()
-      
-      // If auth is null (server-side), skip auth initialization
-      if (!auth) {
-        setAuthInitialized(true)
-        return () => {}
-      }
-      
       const unsubscribe = onAuthStateChanged(auth, (authUser) => {
-        setUser(authUser)
-        setAuthInitialized(true)
+        try {
+          setUser(authUser)
+        } catch (error) {
+          console.error('Error handling auth state change:', error)
+        } finally {
+          setAuthInitialized(true)
+        }
       })
       
       return () => unsubscribe()

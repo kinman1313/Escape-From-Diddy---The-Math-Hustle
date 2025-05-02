@@ -59,7 +59,7 @@ export default function ClosetPage() {
     >
       {availableItems.map((item) => (
         <AnimatePresence key={item.id}>
-          <motion.div
+     <motion.div
             key={item.id}
             className={`border-2 rounded-xl p-6 flex flex-col items-center justify-center gap-4 cursor-pointer transition hover:scale-105 ${
               equippedItem === item.id ? 'border-mathGreen bg-white text-black' : 'border-gray-600'
@@ -97,4 +97,4 @@ export default function ClosetPage() {
     </motion.div> {/* <-- 🛡️ CLOSE the wrapping motion.div properly! */}
   </main>
 )
-} // <-- Add this closing brace for the ClosetPage function
+}
