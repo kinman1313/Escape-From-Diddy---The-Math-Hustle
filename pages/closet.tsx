@@ -8,10 +8,10 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
 const availableItems = [
-  { id: 'coolHat', name: 'Cool Hat 🧢' },
-  { id: 'goldenShoes', name: 'Golden Shoes 👟' },
-  { id: 'mathCape', name: 'Math Cape 🧙‍♂️' },
-  { id: 'fireGlasses', name: 'Fire Glasses 🔥🕶️' },
+  { id: 'coolHat', name: 'Sean John Croc Fedora 🧢' },
+  { id: 'goldenShoes', name: 'P. Diddly Winks Run Fasters 👟' },
+  { id: 'mathCape', name: 'Raptor Skin Math Cape 🧙‍♂️' },
+  { id: 'monopolyMonocle', name: 'Monopoly Man Monocle, dipped in forbidden Cologne 🔥🕶️' },
 ]
 
 export default function ClosetPage() {
