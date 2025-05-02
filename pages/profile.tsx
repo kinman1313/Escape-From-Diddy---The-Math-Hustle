@@ -1,102 +1,100 @@
 // pages/profile.tsx
-import { useContext, useEffect, useState } from 'react'
+import { useEffect, useState, useContext } from 'react'
 import { useRouter } from 'next/router'
-import { AuthContext } from '@/components/AuthProvider'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { AuthContext } from '@/components/AuthProvider'
 import NavBar from '@/components/NavBar'
 
-const avatars = [
-  { id: 'default', label: '🧍 Default' },
-  { id: 'diddy-duck', label: '🎩 Diddy Duck' },
-  { id: 'math-monkey', label: '🧠 Math Monkey' },
-  { id: 'puff-algorithm', label: '🤖 Puff Algorithm' }
-]
-
-export default function Profile() {
+export default function ProfilePage() {
   const { user } = useContext(AuthContext)
   const router = useRouter()
+
   const [nickname, setNickname] = useState('')
-  const [avatar, setAvatar] = useState('default')
-  const [gear, setGear] = useState<string[]>([])
-  const [equipped, setEquipped] = useState<{ head?: string; accessory?: string }>({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
   useEffect(() => {
+    let mounted = true
+
     if (!user) {
-      router.push('/login')
+      router.push('/')
       return
     }
-    const fetchData = async () => {
-      const ref = doc(db, 'players', user.uid)
-      const snap = await getDoc(ref)
-      if (snap.exists()) {
-        const data = snap.data()
-        setNickname(data.nickname || '')
-        setAvatar(data.avatar || 'default')
-        setGear(data.gear || [])
-        setEquipped(data.equipped || {})
+
+    const fetchProfile = async () => {
+      try {
+        const ref = doc(db, 'players', user.uid)
+        const snap = await getDoc(ref)
+        if (mounted && snap.exists()) {
+          const data = snap.data()
+          setNickname(data.nickname || '')
+        }
+      } catch (err) {
+        console.error('Failed to fetch profile:', err)
+        if (mounted) setError('Failed to load profile. Please refresh.')
+      } finally {
+        if (mounted) setLoading(false)
       }
     }
-    fetchData()
-  }, [user])
 
-  const saveChanges = async () => {
-    if (!user) return
-    await updateDoc(doc(db, 'players', user.uid), {
-      avatar,
-      equipped
-    })
-    alert('Profile updated!')
+    fetchProfile()
+
+    return () => {
+      mounted = false
+    }
+  }, [user, router])
+
+  const handleUpdateNickname = async () => {
+    if (!nickname.trim() || !user) return
+    setLoading(true)
+    try {
+      const ref = doc(db, 'players', user.uid)
+      await updateDoc(ref, { nickname: nickname.trim() })
+      setSuccess('Nickname updated successfully!')
+      setError(null)
+    } catch (err) {
+      console.error('Failed to update nickname:', err)
+      setError('Failed to update nickname. Try again.')
+      setSuccess(null)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  if (!user) return null
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white">
+        Loading profile...
+      </div>
+    )
+  }
 
   return (
     <>
       <NavBar />
-      <div className="min-h-screen bg-black text-white flex flex-col items-center gap-6 p-8">
-        <h1 className="text-3xl font-bold">Welcome, {nickname}</h1>
-        <div className="text-center">
-          <h2 className="text-xl mb-2">Select Avatar</h2>
-          <div className="flex gap-4 justify-center flex-wrap">
-            {avatars.map((av) => (
-              <div
-                key={av.id}
-                className={`p-3 rounded border-2 ${av.id === avatar ? 'border-mathGreen' : 'border-gray-600'} cursor-pointer hover:scale-105 transition`}
-                onClick={() => setAvatar(av.id)}
-              >
-                <div className="text-3xl">{av.label.split(' ')[0]}</div>
-                <div className="text-sm mt-1">{av.label.split(' ').slice(1).join(' ')}</div>
-              </div>
-            ))}
-          </div>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-8 text-center bg-black text-white p-8">
+        <h1 className="text-3xl font-bold text-mathGreen">👤 Your Profile</h1>
+
+        {error && <p className="text-red-500">{error}</p>}
+        {success && <p className="text-green-500">{success}</p>}
+
+        <div className="w-full max-w-sm flex flex-col gap-4 mt-6">
+          <input
+            type="text"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            className="p-2 text-black rounded-lg"
+            placeholder="Your nickname"
+          />
+          <button
+            onClick={handleUpdateNickname}
+            className="bg-mathGreen text-black font-bold p-2 rounded-lg hover:scale-105 transition"
+          >
+            Update Nickname
+          </button>
         </div>
-        <div className="text-center">
-          <h2 className="text-xl mt-4 mb-2">Equip Your Gear</h2>
-          <div className="flex flex-wrap gap-4 justify-center">
-            {gear.length === 0 && <p>No gear unlocked yet</p>}
-            {gear.map((item) => (
-              <div
-                key={item}
-                className={`p-2 px-4 rounded border ${equipped.accessory === item ? 'bg-mathGreen text-black' : 'bg-white text-black'}`}
-                onClick={() =>
-                  setEquipped((prev) => ({
-                    ...prev,
-                    accessory: prev.accessory === item ? undefined : item
-                  }))
-                }
-              >
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-        <button
-          onClick={saveChanges}
-          className="mt-6 bg-mathGreen text-black px-6 py-2 rounded-lg hover:scale-105 transition"
-        >
-          Save Profile
-        </button>
       </div>
     </>
   )

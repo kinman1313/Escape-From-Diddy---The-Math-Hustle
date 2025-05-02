@@ -1,101 +1,85 @@
 // pages/leaderboard.tsx
 import { useEffect, useState } from 'react'
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore'
+import { collection, getDocs, orderBy, query, limit } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import NavBar from '@/components/NavBar'
-import { motion } from 'framer-motion'
 
-type Player = {
+interface PlayerData {
   nickname: string
-  score: number
-  streak: number
+  highScore: number
 }
 
 export default function Leaderboard() {
-  const [players, setPlayers] = useState<Player[]>([])
+  const [players, setPlayers] = useState<PlayerData[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let mounted = true
+
     const fetchLeaderboard = async () => {
-      const q = query(
-        collection(db, 'players'),
-        orderBy('score', 'desc'),
-        limit(10)
-      )
-      const querySnapshot = await getDocs(q)
-      const results: Player[] = []
-      querySnapshot.forEach((doc) => {
-        const data = doc.data()
-        results.push({
-          nickname: data.nickname ?? "Unknown",
-          score: data.score ?? 0,
-          streak: data.streak ?? 0
+      try {
+        const q = query(
+          collection(db, 'players'),
+          orderBy('highScore', 'desc'),
+          limit(20)
+        )
+        const querySnapshot = await getDocs(q)
+        const list: PlayerData[] = []
+
+        querySnapshot.forEach(docSnap => {
+          const data = docSnap.data()
+          list.push({
+            nickname: data.nickname || 'Anonymous',
+            highScore: data.highScore || 0
+          })
         })
-      })
-      setPlayers(results)
-      setLoading(false)
+
+        if (mounted) {
+          setPlayers(list)
+        }
+      } catch (err) {
+        console.error('Failed to fetch leaderboard:', err)
+        if (mounted) setError('Failed to load leaderboard.')
+      } finally {
+        if (mounted) setLoading(false)
+      }
     }
+
     fetchLeaderboard()
+
+    return () => {
+      mounted = false
+    }
   }, [])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white">
+        Loading leaderboard...
+      </div>
+    )
+  }
 
   return (
     <>
       <NavBar />
-      <main className="min-h-screen flex flex-col items-center justify-center gap-8 text-center">
-        <h1 className="text-4xl font-bold text-mathGreen mt-8 animate-pulse">
-          🏆 Diddy's Hustle Hall of Fame
-        </h1>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-8 bg-black text-white p-8">
+        <h1 className="text-4xl font-bold text-mathGreen">🏆 Top Hustlers</h1>
 
-        {loading ? (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ repeat: Infinity, duration: 2 }}
-            className="text-white text-lg"
-          >
-            Diddy is tallying the hustlers...
-          </motion.p>
-        ) : players.length === 0 ? (
-          <div className="text-white text-lg mt-6">
-            🚫 No hustlers yet. Be the first legend!
-          </div>
-        ) : (
-          <div className="bg-white text-black p-8 rounded-xl shadow-2xl w-[90%] max-w-2xl">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-mathGreen text-lg">
-                  <th className="pb-3">Rank</th>
-                  <th className="pb-3">Nickname</th>
-                  <th className="pb-3">Score</th>
-                  <th className="pb-3">Streak</th>
-                </tr>
-              </thead>
-              <tbody>
-                {players.map((player, idx) => (
-                  <tr
-                    key={idx}
-                    className="border-t border-gray-300 hover:bg-mathGreen hover:text-black transition-all"
-                  >
-                    <td className="py-2 font-bold">
-                      {idx === 0 ? '👑' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
-                    </td>
-                    <td className="py-2">{player.nickname}</td>
-                    <td className="py-2">{player.score}</td>
-                    <td className="py-2">{player.streak}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {error && <p className="text-red-500">{error}</p>}
 
-        <button
-          onClick={() => window.location.href = '/game'}
-          className="bg-mathGreen text-black px-6 py-3 rounded-lg font-bold hover:scale-105 transition mt-6"
-        >
-          🔥 Back to the Hustle
-        </button>
-      </main>
+        <div className="w-full max-w-md mt-6">
+          <ol className="space-y-4">
+            {players.map((player, index) => (
+              <li key={index} className="bg-white text-black p-4 rounded-lg flex justify-between items-center shadow-md">
+                <span className="font-bold">{index + 1}. {player.nickname}</span>
+                <span className="text-mathGreen font-bold">{player.highScore}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
     </>
   )
 }

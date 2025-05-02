@@ -2,9 +2,9 @@
 import '@/styles/globals.css'
 import type { AppProps } from 'next/app'
 import Head from 'next/head'
-import ImageEvents from '@/components/ImageEvents'
 import { AuthProvider } from '@/components/AuthProvider'
 import { GameProvider } from '@/components/GameProvider'
+import ImageEvents from '@/components/ImageEvents'
 
 export default function App({ Component, pageProps }: AppProps) {
   return (

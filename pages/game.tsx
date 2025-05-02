@@ -465,82 +465,80 @@ export default function Game() {
     return <GameTutorial onComplete={() => setShowTutorial(false)} />
   }
   
-// Show cutscene before game starts
-if (!cutsceneDone) {
-  return (
-    <div onClick={handleFirstInteraction}>
-      <Cutscene 
-        onComplete={() => {
-          setCutsceneDone(true)
-          // Play a sound when cutscene ends
-          playSound('i-like-this', 'correct')
-        }} 
-      />
-    </div>
-  )
-}
-  
-if (isGameOver) {
-  return (
-    <>
-      <NavBar />
-      <div 
-        className={styles.gameContainer} 
-        onClick={handleFirstInteraction}
-      >
-        <div className={styles.gameOverContainer}>
-          <h1 className={styles.gameOverTitle}>💥 Busted by Diddy!</h1>
-          <p className={styles.gameOverMessage}>You couldn't outrun the hustle.</p>
-          
-          <div className={styles.gameOverStats}>
-            <h2 className={styles.statsTitle}>Your Stats</h2>
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>Final Score:</span>
-              <span className={styles.statValue}>{score}</span>
-            </div>
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>High Score:</span>
-              <span className={styles.statValue}>{highScore}</span>
-            </div>
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>Questions Answered:</span>
-              <span className={styles.statValue}>{totalQuestions}</span>
-            </div>
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>Correct Answers:</span>
-              <span className={styles.statValue}>{correctAnswers}</span>
-            </div>
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>Accuracy:</span>
-              <span className={styles.statValue}>
-                {totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0}%
-              </span>
-            </div>
-          </div>
-          
-          <button
-            onClick={() => router.push('/leaderboard')}
-            className={styles.gameOverButton}
-          >
-            View Leaderboard
-          </button>
-          
-          <button
-            onClick={resetGame}
-            className={styles.gameOverButton}
-          >
-            Try Again
-          </button>
-        </div>
-        
-        {/* Add ImageEvents component here */}
-        <ImageEvents />
+  // Show cutscene before game starts
+  if (!cutsceneDone) {
+    return (
+      <div onClick={handleFirstInteraction}>
+        <Cutscene 
+          onComplete={() => {
+            setCutsceneDone(true)
+            // Play a sound when cutscene ends
+            playSound('i-like-this', 'correct')
+          }} 
+        />
       </div>
-    </>
-  )
-}
+    )
+  }
+  
+  // Game over screen
+  if (isGameOver) {
+    return (
+      <>
+        <NavBar />
+        <div 
+          className={styles.gameContainer} 
+          onClick={handleFirstInteraction}
+        >
+          <div className={styles.gameOverContainer}>
+            <h1 className={styles.gameOverTitle}>💥 Busted by Diddy!</h1>
+            <p className={styles.gameOverMessage}>You couldn't outrun the hustle.</p>
+            
+            <div className={styles.gameOverStats}>
+              <h2 className={styles.statsTitle}>Your Stats</h2>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>Final Score:</span>
+                <span className={styles.statValue}>{score}</span>
+              </div>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>High Score:</span>
+                <span className={styles.statValue}>{highScore}</span>
+              </div>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>Questions Answered:</span>
+                <span className={styles.statValue}>{totalQuestions}</span>
+              </div>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>Correct Answers:</span>
+                <span className={styles.statValue}>{correctAnswers}</span>
+              </div>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>Accuracy:</span>
+                <span className={styles.statValue}>
+                  {totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0}%
+                </span>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => router.push('/leaderboard')}
+              className={styles.gameOverButton}
+            >
+              View Leaderboard
+            </button>
+            
+            <button
+              onClick={resetGame}
+              className={styles.gameOverButton}
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </>
+    )
+  }
 
-const percentLeft = (timeLeft / timeLimit) * 100
+  const percentLeft = (timeLeft / timeLimit) * 100
   
   // Get the appropriate color class for the timer bar
   const getBarColorClass = () => {

@@ -1,7 +1,23 @@
 // components/StreakCounter.tsx
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import Confetti from 'react-confetti'
 import styles from '@/styles/StreakAnimation.module.css'
+
+// Custom hook to get window size
+function useWindowSize(): [number, number] {
+  const [size, setSize] = useState<[number, number]>([window.innerWidth, window.innerHeight]);
+
+  useEffect(() => {
+    function handleResize() {
+      setSize([window.innerWidth, window.innerHeight]);
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return size;
+}
 
 type StreakCounterProps = {
   streak: number;
@@ -11,25 +27,39 @@ type StreakCounterProps = {
 export default function StreakCounter({ streak, previousStreak = 0 }: StreakCounterProps) {
   const [showIncrement, setShowIncrement] = useState(false)
   const [showMilestone, setShowMilestone] = useState(false)
-  
-  // Check if streak has increased
+  const [fireConfetti, setFireConfetti] = useState(false)
+  const [flyDirection, setFlyDirection] = useState<'top' | 'left' | 'right'>('top')
+  const [width, height] = useWindowSize()
+
   useEffect(() => {
     if (streak > previousStreak && streak > 0) {
+      const directions = ['top', 'left', 'right'] as const
+      const random = directions[Math.floor(Math.random() * directions.length)]
+      setFlyDirection(random)
+
       setShowIncrement(true)
       setTimeout(() => setShowIncrement(false), 1000)
-      
-      // Check for milestone
+
       if (streak === 3 || streak === 5 || streak === 10) {
         setShowMilestone(true)
-        setTimeout(() => setShowMilestone(false), 2500)
+        setFireConfetti(true)
+        setTimeout(() => {
+          setShowMilestone(false)
+          setFireConfetti(false)
+        }, 2500)
       }
     }
   }, [streak, previousStreak])
-  
-  // No need to show if no streak
-  if (streak === 0) return null;
-  
-  // Get milestone message
+
+  const getFlyInitial = () => {
+    switch (flyDirection) {
+      case 'top': return { y: -50, opacity: 0 }
+      case 'left': return { x: -50, opacity: 0 }
+      case 'right': return { x: 50, opacity: 0 }
+      default: return { y: -50, opacity: 0 }
+    }
+  }
+
   const getMilestoneMessage = () => {
     if (streak === 3) return "Math Apprentice! 🧠"
     if (streak === 5) return "Math Wizard! ✨"
@@ -37,9 +67,16 @@ export default function StreakCounter({ streak, previousStreak = 0 }: StreakCoun
     return ""
   }
 
+  if (streak === 0) return null;
+
   return (
     <div className={styles.streakContainer}>
+      {fireConfetti && (
+        <Confetti width={width} height={height} recycle={false} numberOfPieces={300} />
+      )}
+
       <div className={`${styles.streakCounter} ${streak >= 3 ? styles.streakActive : ''}`}>
+        
         <motion.span 
           animate={{ scale: [1, 1.2, 1] }} 
           transition={{ duration: 0.5 }}
@@ -47,16 +84,18 @@ export default function StreakCounter({ streak, previousStreak = 0 }: StreakCoun
           🔥
         </motion.span>
         
-        <motion.span
-          key={streak}
-          initial={{ scale: 0.8 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", stiffness: 500, damping: 10 }}
-        >
-          Streak: {streak}
-        </motion.span>
-        
-        {/* Streak increment animation */}
+        <AnimatePresence>
+          <motion.span
+            key={streak}
+            initial={getFlyInitial()}
+            animate={{ x: 0, y: 0, opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 20 }}
+          >
+            Streak: {streak}
+          </motion.span>
+        </AnimatePresence>
+
         <AnimatePresence>
           {showIncrement && (
             <motion.div
@@ -70,9 +109,9 @@ export default function StreakCounter({ streak, previousStreak = 0 }: StreakCoun
             </motion.div>
           )}
         </AnimatePresence>
+
       </div>
-      
-      {/* Milestone message */}
+
       <AnimatePresence>
         {showMilestone && (
           <motion.div

@@ -13,6 +13,23 @@
   background-color: var(--midnight);
 }
 
+/* Add this inside EnhancedGameOver.module.css */
+
+.particlesBackground {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 30%, rgba(0, 255, 255, 0.08) 0%, transparent 70%),
+              radial-gradient(circle at 70% 70%, rgba(255, 0, 255, 0.08) 0%, transparent 70%);
+  animation: rotateParticles 60s linear infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@keyframes rotateParticles {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /* Background elements */
 .container::before {
   content: '';
@@ -78,7 +95,14 @@
 
 .trophy {
   font-size: 1.5rem;
+  animation: bounceTrophy 2s infinite;
 }
+
+@keyframes bounceTrophy {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
 
 /* Rank section */
 .rankSection {

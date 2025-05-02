@@ -13,45 +13,71 @@ export default function Closet() {
   const [gear, setGear] = useState<string[]>([])
   const [equipped, setEquipped] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let mounted = true
+
     if (!user) {
       router.push('/')
       return
     }
 
     const fetchGear = async () => {
-      const ref = doc(db, 'players', user.uid)
-      const snap = await getDoc(ref)
-      if (snap.exists()) {
-        const data = snap.data()
-        setGear(data.gear || [])
-        setEquipped(data.equipped?.accessory || null)
+      try {
+        const ref = doc(db, 'players', user.uid)
+        const snap = await getDoc(ref)
+        if (mounted && snap.exists()) {
+          const data = snap.data()
+          setGear(data.gear || [])
+          setEquipped(data.equipped?.accessory || null)
+        }
+      } catch (err) {
+        console.error('Failed to fetch gear:', err)
+        if (mounted) setError('Failed to load gear. Please refresh.')
+      } finally {
+        if (mounted) setLoading(false)
       }
-      setLoading(false)
     }
 
     fetchGear()
+
+    return () => {
+      mounted = false
+    }
   }, [user])
 
   const equipItem = async (item: string) => {
     if (!user) return
-    const ref = doc(db, 'players', user.uid)
-    await updateDoc(ref, {
-      equipped: {
-        accessory: item
-      }
-    })
-    setEquipped(item)
+    try {
+      const ref = doc(db, 'players', user.uid)
+      await updateDoc(ref, {
+        equipped: {
+          accessory: item
+        }
+      })
+      setEquipped(item)
+    } catch (err) {
+      console.error('Failed to equip item:', err)
+      setError('Failed to equip. Try again.')
+    }
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-white">Loading closet...</div>
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white">
+        Loading closet...
+      </div>
+    )
+  }
 
   return (
     <>
       <NavBar />
       <div className="min-h-screen flex flex-col items-center justify-center gap-8 text-center bg-black text-white p-6">
         <h1 className="text-3xl font-bold text-mathGreen">🧳 Your Swag Locker</h1>
+
+        {error && <p className="text-red-500">{error}</p>}
 
         {gear.length === 0 ? (
           <p>No gear unlocked yet. Time to hustle harder! 🏃‍♂️💨</p>

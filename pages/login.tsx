@@ -1,42 +1,45 @@
 // pages/login.tsx
-
-import { useState, useEffect, useContext } from 'react'
+import { useEffect, useState, useContext } from 'react'
 import { useRouter } from 'next/router'
-import { doc, setDoc, getDoc } from 'firebase/firestore'
-import { db, auth, googleProvider } from '@/lib/firebase'
-import {
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  RecaptchaVerifier,
-  PhoneAuthProvider,
-  signInWithCredential,
-  signInWithPhoneNumber // <-- add this import
-} from 'firebase/auth'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { AuthContext } from '@/components/AuthProvider'
+import { 
+  getAuthInstance, 
+  getGoogleProvider, 
+  getEmailProvider, 
+  getPhoneProvider 
+} from '@/lib/firebase'
+import { 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signInWithPhoneNumber, 
+  PhoneAuthProvider,
+  signInWithCredential
+} from 'firebase/auth'
+import '@/styles/Login.module.css'
 
-// Add this before your component
 declare global {
   interface Window {
-    recaptchaVerifier?: any;
+    recaptchaVerifier?: any
   }
 }
 
-export default function Login() {
-  const { user } = useContext(AuthContext)
+export default function LoginPage() {
   const router = useRouter()
+  const { user } = useContext(AuthContext)
 
-  const [mode, setMode] = useState<'login' | 'signup' | 'phone'>('login')
+  const [clientReady, setClientReady] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [nickname, setNickname] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
-  const [verificationId, setVerificationId] = useState('')
   const [verificationCode, setVerificationCode] = useState('')
-  const [phoneNickname, setPhoneNickname] = useState('')
-  const [verificationSent, setVerificationSent] = useState(false)
+  const [verificationId, setVerificationId] = useState('')
+  const [authMethod, setAuthMethod] = useState<'login' | 'register' | 'phone'>('login')
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [clientReady, setClientReady] = useState(false)
+  const [showVerification, setShowVerification] = useState(false)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -48,220 +51,214 @@ export default function Login() {
     if (user) {
       router.push('/game')
     }
-  }, [user])
+  }, [user, router])
 
   const getFirebaseError = (err: any) => {
     switch (err.code) {
-      case 'auth/email-already-in-use': return 'Email already registered.'
-      case 'auth/invalid-email': return 'Invalid email format.'
-      case 'auth/user-not-found': return 'User not found.'
-      case 'auth/wrong-password': return 'Incorrect password.'
-      case 'auth/weak-password': return 'Password too weak.'
-      case 'auth/invalid-phone-number': return 'Phone must be in E.164 format.'
+      case 'auth/invalid-email': return 'Invalid email address.'
+      case 'auth/email-already-in-use': return 'Email already in use.'
+      case 'auth/weak-password': return 'Password should be at least 6 characters.'
+      case 'auth/invalid-phone-number': return 'Invalid phone number. Format: +1234567890'
+      case 'auth/too-many-requests': return 'Too many attempts. Try again later.'
+      case 'auth/code-expired': return 'Verification code expired.'
       case 'auth/invalid-verification-code': return 'Invalid verification code.'
-      case 'auth/code-expired': return 'Code expired.'
-      case 'auth/too-many-requests': return 'Too many requests. Try again later.'
-      default: return 'Authentication failed.'
+      case 'auth/network-request-failed': return 'Network issue. Check your connection.'
+      default: return 'Something went wrong. Try again.'
     }
   }
 
-  const setupRecaptcha = () => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(
-        auth, // Pass the Auth instance as the first argument
-        'recaptcha-container', // Pass the container ID as the second argument
-        {
-          size: 'normal',
-          callback: () => {},
-          'expired-callback': () => setError('reCAPTCHA expired.')
-        }
-      )
-    }
-  }
+  const handleGoogleLogin = async () => {
+    const auth = getAuthInstance()
+    const provider = getGoogleProvider()
 
-  useEffect(() => {
-    if (mode === 'phone' && clientReady) {
-      setupRecaptcha()
-    }
-  }, [mode, clientReady])
-
-  const loginWithGoogle = async () => {
-    try {
-      const result = await signInWithPopup(auth, googleProvider)
-      const userDoc = await getDoc(doc(db, 'players', result.user.uid))
-      if (!userDoc.exists()) {
-        await setDoc(doc(db, 'players', result.user.uid), {
-          nickname: result.user.displayName || 'Player',
-          email: result.user.email,
-          streak: 0,
-          proximity: 0,
-          score: 0,
-          gear: [],
-          avatar: 'default',
-          powerups: {
-            timeFreeze: 2,
-            fiftyFifty: 1,
-            repellent: 1
-          },
-          created: new Date()
-        })
-      }
-    } catch (err: any) {
-      console.error('Google auth error:', err)
-      setError(getFirebaseError(err))
-    }
-  }
-
-  const handleEmailAuth = async () => {
-    try {
-      if (mode === 'signup') {
-        const cred = await createUserWithEmailAndPassword(auth, email, password)
-        await setDoc(doc(db, 'players', cred.user.uid), {
-          nickname,
-          email: cred.user.email,
-          streak: 0,
-          proximity: 0,
-          score: 0,
-          gear: [],
-          avatar: 'default',
-          powerups: {
-            timeFreeze: 2,
-            fiftyFifty: 1,
-            repellent: 1
-          },
-          created: new Date()
-        })
-      } else {
-        await signInWithEmailAndPassword(auth, email, password)
-      }
-    } catch (err: any) {
-      console.error('Email auth error:', err)
-      setError(getFirebaseError(err))
-    }
-  }
-
-  const handleSendVerification = async () => {
-    const formatted = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`
-    const regex = /^\+[1-9]\d{1,14}$/
-    if (!regex.test(formatted)) {
-      setError('Use E.164 format: +1234567890')
+    if (!auth || !provider) {
+      setError('Authentication not initialized.')
       return
     }
 
     try {
-      if (!window.recaptchaVerifier) throw new Error('reCAPTCHA missing')
+      await signInWithPopup(auth, provider)
+    } catch (err) {
+      console.error('Google login failed:', err)
+      setError('Google login failed.')
+    }
+  }
+
+  const handleEmailLogin = async () => {
+    const auth = getAuthInstance()
+
+    if (!auth) {
+      setError('Authentication not initialized.')
+      return
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+    } catch (err: any) {
+      console.error(err)
+      setError(getFirebaseError(err))
+    }
+  }
+
+  const handleEmailRegister = async () => {
+    const auth = getAuthInstance()
+
+    if (!auth) {
+      setError('Authentication not initialized.')
+      return
+    }
+
+    try {
+      await createUserWithEmailAndPassword(auth, email, password)
+    } catch (err: any) {
+      console.error(err)
+      setError(getFirebaseError(err))
+    }
+  }
+
+  const setupRecaptcha = () => {
+    const auth = getAuthInstance()
+    if (!auth) return
+
+    if (!window.recaptchaVerifier) {
+      try {
+        const { RecaptchaVerifier } = require('firebase/auth')
+        window.recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {
+          size: 'normal',
+          callback: () => {},
+          'expired-callback': () => {
+            setError('reCAPTCHA expired. Please solve it again.')
+          }
+        }, auth)
+      } catch (err) {
+        console.error('reCAPTCHA error:', err)
+        setError('reCAPTCHA setup failed.')
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (authMethod === 'phone' && clientReady) {
+      setupRecaptcha()
+    }
+  }, [authMethod, clientReady])
+
+  const handleSendVerification = async () => {
+    const auth = getAuthInstance()
+
+    if (!auth || !phoneNumber) {
+      setError('Authentication not initialized.')
+      return
+    }
+
+    const formatted = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`
+    const regex = /^\+[1-9]\d{1,14}$/
+    if (!regex.test(formatted)) {
+      setError('Invalid phone number format. Use +1234567890')
+      return
+    }
+
+    setLoading(true)
+    try {
+      if (!window.recaptchaVerifier) throw new Error('reCAPTCHA not initialized.')
       const result = await signInWithPhoneNumber(auth, formatted, window.recaptchaVerifier)
       setVerificationId(result.verificationId)
-      setVerificationSent(true)
+      setShowVerification(true)
     } catch (err: any) {
-      console.error('Phone send error:', err)
+      console.error('Phone verification error:', err)
       setError(getFirebaseError(err))
       try {
         window.recaptchaVerifier?.clear()
         window.recaptchaVerifier = null
       } catch {}
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleVerifyCode = async () => {
+    const auth = getAuthInstance()
+
+    if (!auth || !verificationId || !verificationCode) {
+      setError('Authentication not initialized.')
+      return
+    }
+
+    setLoading(true)
     try {
       const credential = PhoneAuthProvider.credential(verificationId, verificationCode)
-      const userCred = await signInWithCredential(auth, credential)
-      const user = userCred.user
-
-      const userDoc = await getDoc(doc(db, 'players', user.uid))
-      if (!userDoc.exists()) {
-        await setDoc(doc(db, 'players', user.uid), {
-          nickname: phoneNickname,
-          phoneNumber: user.phoneNumber,
-          streak: 0,
-          proximity: 0,
-          score: 0,
-          gear: [],
-          avatar: 'default',
-          powerups: {
-            timeFreeze: 2,
-            fiftyFifty: 1,
-            repellent: 1
-          },
-          created: new Date()
-        })
-      }
+      await signInWithCredential(auth, credential)
     } catch (err: any) {
-      console.error('Code verification error:', err)
+      console.error('Verification failed:', err)
       setError(getFirebaseError(err))
+    } finally {
+      setLoading(false)
     }
   }
 
-  const renderPhoneAuth = () => (
-    <div className="flex flex-col gap-3 w-80">
-      {!verificationSent ? (
+  const renderAuth = () => {
+    if (authMethod === 'phone') {
+      return !showVerification ? (
         <>
           <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
-                 className="p-2 rounded text-black" placeholder="+1234567890" />
-          <div id="recaptcha-container" className="my-2" />
-          <button onClick={handleSendVerification} className="bg-green-500 p-2 rounded text-white">
-            Send Verification Code
-          </button>
+                 className="p-2 text-black w-full" placeholder="+1234567890" />
+          <div id="recaptcha-container" className="my-4" />
+          <button onClick={handleSendVerification} className="bg-green-500 w-full p-2 rounded">Send Code</button>
         </>
       ) : (
         <>
           <input type="text" value={verificationCode} onChange={e => setVerificationCode(e.target.value)}
-                 className="p-2 rounded text-black" placeholder="Enter code" />
-          <input type="text" value={phoneNickname} onChange={e => setPhoneNickname(e.target.value)}
-                 className="p-2 rounded text-black" placeholder="Your nickname" />
-          <button onClick={handleVerifyCode} className="bg-green-600 p-2 rounded text-white">
-            Verify & Sign In
-          </button>
+                 className="p-2 text-black w-full" placeholder="Enter 6-digit code" />
+          <button onClick={handleVerifyCode} className="bg-green-600 w-full p-2 rounded mt-2">Verify</button>
         </>
-      )}
-    </div>
-  )
+      )
+    }
 
-  const renderEmailAuth = () => (
-    <form onSubmit={e => {
-      e.preventDefault()
-      handleEmailAuth()
-    }} className="flex flex-col gap-3 w-80">
-      <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-             className="p-2 rounded text-black" placeholder="Email" required />
-      <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-             className="p-2 rounded text-black" placeholder="Password" required />
-      {mode === 'signup' && (
-        <input type="text" value={nickname} onChange={e => setNickname(e.target.value)}
-               className="p-2 rounded text-black" placeholder="Nickname" />
-      )}
-      <button type="submit" className="bg-green-500 p-2 rounded text-white">
-        {mode === 'signup' ? 'Sign Up' : 'Login'}
-      </button>
-      <button type="button" onClick={loginWithGoogle} className="bg-blue-500 p-2 rounded text-white">
-        Continue with Google
-      </button>
-    </form>
-  )
+    return (
+      <form onSubmit={(e) => {
+        e.preventDefault()
+        authMethod === 'register' ? handleEmailRegister() : handleEmailLogin()
+      }} className="flex flex-col gap-2 w-72">
+        <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+               className="p-2 text-black" placeholder="Email" required />
+        <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+               className="p-2 text-black" placeholder="Password" required />
+        <button type="submit" className="bg-green-500 p-2 rounded">
+          {authMethod === 'register' ? 'Register' : 'Login'}
+        </button>
+        <button type="button" onClick={handleGoogleLogin} className="bg-blue-500 text-white p-2 rounded">
+          Sign in with Google
+        </button>
+        <div className="text-sm text-center">
+          <span onClick={() => setAuthMethod(authMethod === 'register' ? 'login' : 'register')}
+                className="text-blue-400 cursor-pointer underline">
+            {authMethod === 'register' ? 'Already have an account?' : 'Need an account?'}
+          </span>
+          {' | '}
+          <span onClick={() => {
+            setAuthMethod('phone')
+            setShowVerification(false)
+          }} className="text-blue-400 cursor-pointer underline">
+            Use phone
+          </span>
+        </div>
+      </form>
+    )
+  }
 
-  if (!clientReady) return <div className="text-center mt-12 text-lg text-mathGreen animate-pulse">Loading...</div>
+  if (!clientReady) {
+    return (
+      <div className="text-center mt-10 text-mathGreen animate-pulse">
+        Initializing...
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6">
-      <h1 className="text-3xl font-bold text-mathGreen mb-4">Escape From Diddy</h1>
-      {error && <p className="text-red-500 text-sm">{error}</p>}
-      {mode === 'phone' ? renderPhoneAuth() : renderEmailAuth()}
-      <div className="text-sm mt-4">
-        {mode === 'login' ? (
-          <>
-            No account? <span onClick={() => setMode('signup')} className="text-blue-400 underline cursor-pointer">Sign up</span> or use <span onClick={() => setMode('phone')} className="text-blue-400 underline cursor-pointer">phone</span>
-          </>
-        ) : mode === 'signup' ? (
-          <>
-            Already registered? <span onClick={() => setMode('login')} className="text-blue-400 underline cursor-pointer">Log in</span> or use <span onClick={() => setMode('phone')} className="text-blue-400 underline cursor-pointer">phone</span>
-          </>
-        ) : (
-          <>
-            Prefer email? <span onClick={() => setMode('login')} className="text-blue-400 underline cursor-pointer">Login</span> or <span onClick={() => setMode('signup')} className="text-blue-400 underline cursor-pointer">Sign up</span>
-          </>
-        )}
-      </div>
-    </div>
+    <main className="flex flex-col items-center justify-center min-h-screen gap-6 bg-black text-white p-4">
+      <h1 className="text-4xl font-bold text-mathGreen">Escape From Diddy - Login</h1>
+      {error && <p className="text-red-500">{error}</p>}
+      {renderAuth()}
+    </main>
   )
 }

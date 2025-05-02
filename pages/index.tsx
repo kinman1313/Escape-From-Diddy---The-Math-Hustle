@@ -2,17 +2,22 @@
 import { useEffect, useState, useContext } from 'react'
 import { useRouter } from 'next/router'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { db, auth, googleProvider } from '@/lib/firebase'
-import {
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  PhoneAuthProvider,
-  signInWithCredential,
-  RecaptchaVerifier,
-  signInWithPhoneNumber // <-- add this import
-} from 'firebase/auth'
+import { db } from '@/lib/firebase'
 import { AuthContext } from '@/components/AuthProvider'
+import { 
+  getAuthInstance, 
+  getGoogleProvider, 
+  getEmailProvider, 
+  getPhoneProvider 
+} from '@/lib/firebase'
+import { 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signInWithPhoneNumber, 
+  PhoneAuthProvider,
+  signInWithCredential
+} from 'firebase/auth'
 
 declare global {
   interface Window {
@@ -51,36 +56,7 @@ export default function Home() {
       }
     }
     checkUser()
-  }, [user])
-
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider)
-    } catch (err) {
-      console.error('Google login failed:', err)
-      setError('Google login failed.')
-    }
-  }
-
-  const handleEmailLogin = async () => {
-    if (!email || !password) return
-    try {
-      await signInWithEmailAndPassword(auth, email, password)
-    } catch (err: any) {
-      console.error(err)
-      setError(getFirebaseError(err))
-    }
-  }
-
-  const handleEmailRegister = async () => {
-    if (!email || !password) return
-    try {
-      await createUserWithEmailAndPassword(auth, email, password)
-    } catch (err: any) {
-      console.error(err)
-      setError(getFirebaseError(err))
-    }
-  }
+  }, [user, router])
 
   const getFirebaseError = (err: any) => {
     switch (err.code) {
@@ -96,20 +72,69 @@ export default function Home() {
     }
   }
 
+  const handleGoogleLogin = async () => {
+    const auth = getAuthInstance()
+    const provider = getGoogleProvider()
+
+    if (!auth || !provider) {
+      setError('Authentication not initialized.')
+      return
+    }
+
+    try {
+      await signInWithPopup(auth, provider)
+    } catch (err) {
+      console.error('Google login failed:', err)
+      setError('Google login failed.')
+    }
+  }
+
+  const handleEmailLogin = async () => {
+    const auth = getAuthInstance()
+
+    if (!auth) {
+      setError('Authentication not initialized.')
+      return
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+    } catch (err: any) {
+      console.error(err)
+      setError(getFirebaseError(err))
+    }
+  }
+
+  const handleEmailRegister = async () => {
+    const auth = getAuthInstance()
+
+    if (!auth) {
+      setError('Authentication not initialized.')
+      return
+    }
+
+    try {
+      await createUserWithEmailAndPassword(auth, email, password)
+    } catch (err: any) {
+      console.error(err)
+      setError(getFirebaseError(err))
+    }
+  }
+
   const setupRecaptcha = () => {
+    const auth = getAuthInstance()
+    if (!auth) return
+
     if (!window.recaptchaVerifier) {
       try {
-        window.recaptchaVerifier = new RecaptchaVerifier(
-          auth, // <-- pass auth as the first argument
-          'recaptcha-container', // <-- container ID as the second argument
-          {
-            size: 'normal',
-            callback: () => {},
-            'expired-callback': () => {
-              setError('reCAPTCHA expired. Please solve it again.')
-            }
+        const { RecaptchaVerifier } = require('firebase/auth')
+        window.recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {
+          size: 'normal',
+          callback: () => {},
+          'expired-callback': () => {
+            setError('reCAPTCHA expired. Please solve it again.')
           }
-        )
+        }, auth)
       } catch (err) {
         console.error('reCAPTCHA error:', err)
         setError('reCAPTCHA setup failed.')
@@ -124,7 +149,12 @@ export default function Home() {
   }, [authMethod, clientReady])
 
   const handleSendVerification = async () => {
-    if (!phoneNumber) return
+    const auth = getAuthInstance()
+
+    if (!auth || !phoneNumber) {
+      setError('Authentication not initialized.')
+      return
+    }
 
     const formatted = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`
     const regex = /^\+[1-9]\d{1,14}$/
@@ -152,7 +182,12 @@ export default function Home() {
   }
 
   const handleVerifyCode = async () => {
-    if (!verificationCode || !verificationId) return
+    const auth = getAuthInstance()
+
+    if (!auth || !verificationId || !verificationCode) {
+      setError('Authentication not initialized.')
+      return
+    }
 
     setLoading(true)
     try {
@@ -229,13 +264,20 @@ export default function Home() {
     )
   }
 
-  if (!clientReady) return <div className="text-center mt-10 text-mathGreen animate-pulse">Initializing...</div>
+  if (!clientReady) {
+    return (
+      <div className="text-center mt-10 text-mathGreen animate-pulse">
+        Initializing...
+      </div>
+    )
+  }
 
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen gap-6">
+    <main className="flex flex-col items-center justify-center min-h-screen gap-6 bg-black text-white p-4">
       <h1 className="text-4xl font-bold text-mathGreen">Escape From Diddy</h1>
       {error && <p className="text-red-500">{error}</p>}
-      {!user ? (         renderAuth()
+      {!user ? (
+        renderAuth()
       ) : (
         <div className="flex flex-col gap-4 w-72">
           <input type="text" value={nickname} onChange={e => setNickname(e.target.value)}
