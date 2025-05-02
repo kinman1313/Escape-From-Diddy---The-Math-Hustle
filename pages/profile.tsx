@@ -1,101 +1,103 @@
 // pages/profile.tsx
-import { useEffect, useState, useContext } from 'react'
-import { useRouter } from 'next/router'
-import { doc, getDoc, updateDoc } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { useContext, useState, useEffect } from 'react'
 import { AuthContext } from '@/components/AuthProvider'
-import NavBar from '@/components/NavBar'
+import { db } from '@/lib/firebase'
+import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import { motion } from 'framer-motion'
 
 export default function ProfilePage() {
   const { user } = useContext(AuthContext)
-  const router = useRouter()
-
-  const [nickname, setNickname] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const [profileData, setProfileData] = useState<any>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    let mounted = true
-
-    if (!user) {
-      router.push('/')
-      return
-    }
+    if (!user) return
 
     const fetchProfile = async () => {
-      try {
-        const ref = doc(db, 'players', user.uid)
-        const snap = await getDoc(ref)
-        if (mounted && snap.exists()) {
-          const data = snap.data()
-          setNickname(data.nickname || '')
-        }
-      } catch (err) {
-        console.error('Failed to fetch profile:', err)
-        if (mounted) setError('Failed to load profile. Please refresh.')
-      } finally {
-        if (mounted) setLoading(false)
+      const ref = doc(db, 'players', user.uid)
+      const snapshot = await getDoc(ref)
+      if (snapshot.exists()) {
+        setProfileData(snapshot.data())
       }
     }
 
     fetchProfile()
+  }, [user])
 
-    return () => {
-      mounted = false
-    }
-  }, [user, router])
-
-  const handleUpdateNickname = async () => {
-    if (!nickname.trim() || !user) return
-    setLoading(true)
-    try {
-      const ref = doc(db, 'players', user.uid)
-      await updateDoc(ref, { nickname: nickname.trim() })
-      setSuccess('Nickname updated successfully!')
-      setError(null)
-    } catch (err) {
-      console.error('Failed to update nickname:', err)
-      setError('Failed to update nickname. Try again.')
-      setSuccess(null)
-    } finally {
-      setLoading(false)
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const url = URL.createObjectURL(file)
+      setAvatarUrl(url)
     }
   }
 
-  if (loading) {
+  if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-white">
-        Loading profile...
-      </div>
+      <main className="flex items-center justify-center min-h-screen text-mathGreen text-xl animate-pulse">
+        Loading Profile...
+      </main>
     )
   }
 
   return (
-    <>
-      <NavBar />
-      <div className="min-h-screen flex flex-col items-center justify-center gap-8 text-center bg-black text-white p-8">
-        <h1 className="text-3xl font-bold text-mathGreen">👤 Your Profile</h1>
+    <main className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-6">
+      <motion.h1
+        className="text-4xl font-bold mb-8 text-mathGreen animate-bounce"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1 }}
+      >
+        Your Profile
+      </motion.h1>
 
-        {error && <p className="text-red-500">{error}</p>}
-        {success && <p className="text-green-500">{success}</p>}
-
-        <div className="w-full max-w-sm flex flex-col gap-4 mt-6">
-          <input
-            type="text"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            className="p-2 text-black rounded-lg"
-            placeholder="Your nickname"
+      {/* Avatar Section */}
+      <motion.div
+        className="relative mb-6"
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ type: 'spring', stiffness: 300 }}
+      >
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt="Custom Avatar"
+            className="w-32 h-32 rounded-full object-cover border-4 border-mathGreen shadow-lg"
           />
-          <button
-            onClick={handleUpdateNickname}
-            className="bg-mathGreen text-black font-bold p-2 rounded-lg hover:scale-105 transition"
-          >
-            Update Nickname
-          </button>
-        </div>
-      </div>
-    </>
+        ) : (
+          <div className="w-32 h-32 flex items-center justify-center rounded-full bg-gray-800 border-4 border-gray-600 text-4xl shadow-lg">
+            👤
+          </div>
+        )}
+
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleAvatarUpload}
+          className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer"
+          title="Upload your avatar"
+        />
+      </motion.div>
+
+      {/* Profile Stats */}
+      {profileData && (
+        <motion.div
+          className="text-center space-y-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <p className="text-2xl font-semibold">
+            Nickname: <span className="text-mathGreen">{profileData.nickname || 'No nickname'}</span>
+          </p>
+          <p className="text-xl">
+            High Score: <span className="font-bold text-yellow-400">{profileData.highScore || 0}</span>
+          </p>
+          <p className="text-xl">
+            Equipped: <span className="text-mathGreen">{profileData.equippedItem || 'None'}</span>
+          </p>
+        </motion.div>
+      )}
+    </main>
   )
 }
