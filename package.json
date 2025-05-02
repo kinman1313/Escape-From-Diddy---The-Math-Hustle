@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@react-hook/window-size": "^3.1.1",
+    "@tailwindcss/forms": "^0.5.10",
     "@vercel/analytics": "^1.5.0",
     "firebase": "^11.6.1",
     "framer-motion": "^10.16.4",
