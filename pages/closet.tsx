@@ -1,106 +1,100 @@
 // pages/closet.tsx
-import { useEffect, useState, useContext } from 'react'
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/router'
+import { AuthContext } from '@/components/AuthProvider'
+import { useContext } from 'react'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { AuthContext } from '@/components/AuthProvider'
-import NavBar from '@/components/NavBar'
 
-export default function Closet() {
-  const { user } = useContext(AuthContext)
+const availableItems = [
+  { id: 'coolHat', name: 'Cool Hat 🧢' },
+  { id: 'goldenShoes', name: 'Golden Shoes 👟' },
+  { id: 'mathCape', name: 'Math Cape 🧙‍♂️' },
+  { id: 'fireGlasses', name: 'Fire Glasses 🔥🕶️' },
+]
+
+export default function ClosetPage() {
   const router = useRouter()
-
-  const [gear, setGear] = useState<string[]>([])
-  const [equipped, setEquipped] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { user } = useContext(AuthContext)
+  const [equippedItem, setEquippedItem] = useState<string | null>(null)
 
   useEffect(() => {
-    let mounted = true
-
-    if (!user) {
-      router.push('/')
-      return
-    }
-
-    const fetchGear = async () => {
-      try {
-        const ref = doc(db, 'players', user.uid)
-        const snap = await getDoc(ref)
-        if (mounted && snap.exists()) {
-          const data = snap.data()
-          setGear(data.gear || [])
-          setEquipped(data.equipped?.accessory || null)
-        }
-      } catch (err) {
-        console.error('Failed to fetch gear:', err)
-        if (mounted) setError('Failed to load gear. Please refresh.')
-      } finally {
-        if (mounted) setLoading(false)
+    if (!user) return
+    const fetchEquipped = async () => {
+      const ref = doc(db, 'players', user.uid)
+      const snapshot = await getDoc(ref)
+      if (snapshot.exists()) {
+        const data = snapshot.data()
+        setEquippedItem(data?.equippedItem || null)
       }
     }
-
-    fetchGear()
-
-    return () => {
-      mounted = false
-    }
+    fetchEquipped()
   }, [user])
 
-  const equipItem = async (item: string) => {
+  const handleEquip = async (itemId: string) => {
     if (!user) return
-    try {
-      const ref = doc(db, 'players', user.uid)
-      await updateDoc(ref, {
-        equipped: {
-          accessory: item
-        }
-      })
-      setEquipped(item)
-    } catch (err) {
-      console.error('Failed to equip item:', err)
-      setError('Failed to equip. Try again.')
-    }
+    const ref = doc(db, 'players', user.uid)
+    await updateDoc(ref, { equippedItem: itemId })
+    setEquippedItem(itemId)
   }
 
-  if (loading) {
+  if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-white">
-        Loading closet...
-      </div>
+      <main className="flex items-center justify-center min-h-screen text-mathGreen text-xl animate-pulse">
+        Loading Closet...
+      </main>
     )
   }
 
   return (
-    <>
-      <NavBar />
-      <div className="min-h-screen flex flex-col items-center justify-center gap-8 text-center bg-black text-white p-6">
-        <h1 className="text-3xl font-bold text-mathGreen">🧳 Your Swag Locker</h1>
+  <main className="min-h-screen bg-black text-white p-6 flex flex-col items-center">
+    <h1 className="text-4xl font-bold text-mathGreen mb-6 animate-bounce">Closet 🧥</h1>
 
-        {error && <p className="text-red-500">{error}</p>}
+    <motion.div
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: 'spring', stiffness: 300 }}
+      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-5xl"
+    >
+      {availableItems.map((item) => (
+        <AnimatePresence key={item.id}>
+          <motion.div
+            key={item.id}
+            className={`border-2 rounded-xl p-6 flex flex-col items-center justify-center gap-4 cursor-pointer transition hover:scale-105 ${
+              equippedItem === item.id ? 'border-mathGreen bg-white text-black' : 'border-gray-600'
+            }`}
+            onClick={() => handleEquip(item.id)}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.5, delay: Math.random() * 0.3 }}
+          >
+            {/* Content inside item */}
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1.2 }}
+              transition={{ type: 'spring', stiffness: 300 }}
+              className="text-5xl"
+            >
+              {item.name.split(' ').pop()}
+            </motion.div>
 
-        {gear.length === 0 ? (
-          <p>No gear unlocked yet. Time to hustle harder! 🏃‍♂️💨</p>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mt-4">
-            {gear.map((item) => (
-              <div
-                key={item}
-                className={`p-4 rounded-xl shadow-xl bg-white text-black flex flex-col items-center gap-2
-                ${equipped === item ? 'border-4 border-mathGreen' : ''}`}
+            <p className="text-lg font-bold">{item.name}</p>
+
+            {equippedItem === item.id && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-mathGreen font-semibold"
               >
-                <h2 className="font-bold text-center">{item}</h2>
-                <button
-                  onClick={() => equipItem(item)}
-                  className="bg-mathGreen text-black font-bold px-4 py-2 rounded-lg hover:scale-105 transition"
-                >
-                  {equipped === item ? 'Equipped' : 'Equip'}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </>
-  )
-}
+                Equipped!
+              </motion.div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      ))}
+    </motion.div> {/* <-- 🛡️ CLOSE the wrapping motion.div properly! */}
+  </main>
+)
+} // <-- Add this closing brace for the ClosetPage function

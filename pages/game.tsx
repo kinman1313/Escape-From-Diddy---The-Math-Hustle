@@ -596,12 +596,14 @@ export default function Game() {
           {feedback && <FeedbackModal isCorrect={feedback === 'correct'} />}
         </AnimatePresence>
         
-        {showReward && (
-          <RewardModal 
-            reward={showReward} 
-            onClose={() => setShowReward(null)} 
-          />
-        )}
+   {showReward && (
+  <RewardModal 
+    show={true} 
+    rewardName={showReward} 
+    onClose={() => setShowReward(null)} 
+  />
+)}
+
 
         <DiddyMeter level={proximity} />
         

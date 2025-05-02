@@ -1,7 +1,7 @@
 // components/EnhancedGameOver.tsx
 import { motion, AnimatePresence } from 'framer-motion'
 import Confetti from 'react-confetti'
-import { useState, useEffect } from 'react'
+import { useWindowSize } from '@react-hook/window-size'
 import styles from '@/styles/EnhancedGameOver.module.css'
 
 type EnhancedGameOverProps = {
@@ -11,26 +11,14 @@ type EnhancedGameOverProps = {
   onRestart: () => void;
 }
 
-function useWindowSize(): [number, number] {
-  const [size, setSize] = useState<[number, number]>([
-    typeof window !== 'undefined' ? window.innerWidth : 0,
-    typeof window !== 'undefined' ? window.innerHeight : 0,
-  ])
-
-  useEffect(() => {
-    function handleResize() {
-      setSize([window.innerWidth, window.innerHeight])
-    }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-
-  return size
-}
-
 export default function EnhancedGameOver({ show, score, highScore, onRestart }: EnhancedGameOverProps) {
   const isNewHighScore = score >= highScore
-  const [width, height] = useWindowSize() // 🔥 Moved inside here!
+  const [width, height] = useWindowSize()
+
+const shareText = encodeURIComponent(`I just scored ${score} points in Escape From Diddy! 🧠🔥 Can you beat me?`);
+const shareUrl = encodeURIComponent('https://diddysgonemath.com');
+const twitterUrl = `https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`;
+const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`;
 
   return (
     <AnimatePresence>
@@ -62,12 +50,7 @@ export default function EnhancedGameOver({ show, score, highScore, onRestart }: 
 
             {isNewHighScore && (
               <>
-                <Confetti
-                  width={width}
-                  height={height}
-                  recycle={false}
-                  numberOfPieces={200}
-                />
+                <Confetti width={width} height={height} recycle={false} numberOfPieces={200} />
                 <motion.p
                   className="text-2xl text-pink-400 font-bold mb-6"
                   initial={{ scale: 0 }}
@@ -79,12 +62,38 @@ export default function EnhancedGameOver({ show, score, highScore, onRestart }: 
               </>
             )}
 
-            <button
-              onClick={onRestart}
-              className="mt-4 bg-mathGreen text-black px-6 py-3 rounded-full text-lg font-bold hover:scale-110 transition"
-            >
-              Try Again
-            </button>
+            {/* Buttons section */}
+            <div className="flex flex-col gap-4 items-center mt-4">
+
+              <button
+                onClick={onRestart}
+                className="bg-mathGreen text-black px-6 py-3 rounded-full text-lg font-bold hover:scale-110 transition"
+              >
+                Try Again
+              </button>
+
+              {/* Social sharing */}
+              <div className="flex gap-4 mt-4">
+                <a
+                  href={twitterUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-blue-500 px-4 py-2 rounded-lg font-bold hover:opacity-80 transition"
+                >
+                  Share on X
+                </a>
+
+                <a
+                  href={facebookUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-blue-700 px-4 py-2 rounded-lg font-bold hover:opacity-80 transition"
+                >
+                  Share on Facebook
+                </a>
+              </div>
+
+            </div>
           </motion.div>
         </motion.div>
       )}
