@@ -3,6 +3,7 @@ import { useContext, useState, useEffect } from 'react'
 import { AuthContext } from '@/components/AuthProvider'
 import { db } from '@/lib/firebase'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import SocialShare from '@/components/SocialShare'
 import { motion } from 'framer-motion'
 
 export default function ProfilePage() {
@@ -78,6 +79,12 @@ export default function ProfilePage() {
           title="Upload your avatar"
         />
       </motion.div>
+
+{user && (
+  <div className="mt-10">
+    <SocialShare score={profileData?.highScore || 0} />
+  </div>
+)}
 
       {/* Profile Stats */}
       {profileData && (

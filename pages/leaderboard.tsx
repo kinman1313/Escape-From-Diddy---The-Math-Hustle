@@ -3,11 +3,17 @@ import { useEffect, useState } from 'react'
 import { collection, getDocs, orderBy, query, limit } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import NavBar from '@/components/NavBar'
+import SocialShare from '@/components/SocialShare'
+import { motion } from 'framer-motion'
 
 interface PlayerData {
   nickname: string
   highScore: number
 }
+
+<div className="flex justify-center mt-10">
+  <SocialShare />
+</div>
 
 export default function Leaderboard() {
   const [players, setPlayers] = useState<PlayerData[]>([])
