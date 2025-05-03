@@ -480,63 +480,134 @@ export default function Game() {
   }
   
   // Game over screen
-  if (isGameOver) {
-    return (
-      <>
-        <NavBar />
-        <div 
-          className={styles.gameContainer} 
-          onClick={handleFirstInteraction}
+ if (isGameOver) {
+  return (
+    <>
+      <NavBar />
+      <motion.div 
+        className={`${styles.gameContainer} bg-black text-white`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <motion.div 
+          className="relative w-full max-w-2xl p-8 text-center"
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 300 }}
         >
-          <div className={styles.gameOverContainer}>
-            <h1 className={styles.gameOverTitle}>💥 Busted by Diddy!</h1>
-            <p className={styles.gameOverMessage}>You couldn't outrun the hustle.</p>
-            
-            <div className={styles.gameOverStats}>
-              <h2 className={styles.statsTitle}>Your Stats</h2>
-              <div className={styles.statItem}>
-                <span className={styles.statLabel}>Final Score:</span>
-                <span className={styles.statValue}>{score}</span>
+          {/* Dramatic Game Over Header */}
+          <motion.h1 
+            className="text-6xl font-bold mb-6 text-diddyDanger flex items-center justify-center"
+            initial={{ y: -50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2, type: 'spring' }}
+          >
+            <span className="mr-4">💥</span>
+            DIDDY CAUGHT YOU!
+            <span className="ml-4">🕴️</span>
+          </motion.h1>
+
+          {/* Stats Container with Video Game UI Style */}
+          <motion.div 
+            className="bg-midnight border-2 border-mathGreen rounded-xl p-6 shadow-2xl"
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              {/* Left Column - Primary Stats */}
+              <div className="space-y-4">
+                <div className="stat-item">
+                  <span className="text-xl text-mathGreen font-bold">Final Score</span>
+                  <motion.div 
+                    className="text-4xl font-extrabold text-yellow-400"
+                    initial={{ scale: 0.5 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 300 }}
+                  >
+                    {score}
+                  </motion.div>
+                </div>
+                <div className="stat-item">
+                  <span className="text-xl text-mathGreen">High Score</span>
+                  <div className="text-3xl font-bold text-green-500">
+                    {highScore}
+                  </div>
+                </div>
               </div>
-              <div className={styles.statItem}>
-                <span className={styles.statLabel}>High Score:</span>
-                <span className={styles.statValue}>{highScore}</span>
-              </div>
-              <div className={styles.statItem}>
-                <span className={styles.statLabel}>Questions Answered:</span>
-                <span className={styles.statValue}>{totalQuestions}</span>
-              </div>
-              <div className={styles.statItem}>
-                <span className={styles.statLabel}>Correct Answers:</span>
-                <span className={styles.statValue}>{correctAnswers}</span>
-              </div>
-              <div className={styles.statItem}>
-                <span className={styles.statLabel}>Accuracy:</span>
-                <span className={styles.statValue}>
-                  {totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0}%
-                </span>
+
+              {/* Right Column - Detailed Stats */}
+              <div className="space-y-4 text-left">
+                <div className="stat-item">
+                  <span className="text-mathGreen">Questions Answered</span>
+                  <div className="text-2xl font-bold">{totalQuestions}</div>
+                </div>
+                <div className="stat-item">
+                  <span className="text-mathGreen">Correct Answers</span>
+                  <div className="text-2xl font-bold text-green-500">
+                    {correctAnswers}
+                  </div>
+                </div>
+                <div className="stat-item">
+                  <span className="text-mathGreen">Accuracy</span>
+                  <div className="text-2xl font-bold text-yellow-500">
+                    {totalQuestions > 0 
+                      ? `${Math.round((correctAnswers / totalQuestions) * 100)}%`
+                      : '0%'}
+                  </div>
+                </div>
               </div>
             </div>
-            
-            <button
-              onClick={() => router.push('/leaderboard')}
-                   className={styles.gameOverButton}
-            >
-              View Leaderboard
-            </button>
-            
-            <button
-              onClick={resetGame}
-              className={styles.gameOverButton}
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      </>
-    )
-  }
 
+            {/* Achievement/Milestone Check */}
+            {highScore === score && (
+              <motion.div 
+                className="bg-diddyDanger text-white p-4 rounded-lg mb-4 text-center"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.6 }}
+              >
+                🏆 New Personal High Score! 🏆
+              </motion.div>
+            )}
+          </motion.div>
+
+          {/* Action Buttons */}
+          <motion.div 
+            className="flex justify-center space-x-4 mt-8"
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+          >
+            <button 
+              onClick={() => router.push('/leaderboard')}
+              className="bg-mathGreen text-black px-6 py-3 rounded-lg hover:bg-opacity-80 transition flex items-center gap-2"
+            >
+              🏅 Leaderboard
+            </button>
+            <button 
+              onClick={resetGame}
+              className="bg-diddyDanger text-white px-6 py-3 rounded-lg hover:bg-opacity-80 transition flex items-center gap-2"
+            >
+              🔄 Try Again
+            </button>
+          </motion.div>
+        </motion.div>
+
+        {/* Celebratory Confetti as a backdrop */}
+        <Confetti
+          width={windowSize.width}
+          height={windowSize.height}
+          recycle={false}
+          numberOfPieces={200}
+          gravity={0.1}
+          colors={['#00ffcc', '#ff003c', '#ffffff', '#ffff00']}
+        />
+      </motion.div>
+    </>
+  )
+}
   const percentLeft = (timeLeft / timeLimit) * 100
   
   // Get the appropriate color class for the timer bar

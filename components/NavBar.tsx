@@ -5,6 +5,8 @@ import { useState, useEffect, useContext } from 'react'
 import { useRouter } from 'next/router'
 import { AuthContext } from './AuthProvider'
 import { playSound } from '@/lib/soundManager'
+import { signOut } from 'firebase/auth'
+import { getAuthInstance } from '@/lib/firebase'
 
 // Define nav link interface for type safety
 interface NavLink {
@@ -20,6 +22,8 @@ export default function NavBar() {
   const [scrolled, setScrolled] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [orientation, setOrientation] = useState('portrait')
+  const [loading, setLoading] = useState(false)
+  const [isGamePage, setIsGamePage] = useState(false)
   
   // Define navigation links with icons
   const navLinks: NavLink[] = [
@@ -46,7 +50,7 @@ export default function NavBar() {
     }
   }, [scrolled])
   
-  // Monitor orientation changes
+  // Monitor orientation changes and check if we're on the game page
   useEffect(() => {
     const checkOrientation = () => {
       if (typeof window !== 'undefined') {
@@ -55,6 +59,9 @@ export default function NavBar() {
         )
       }
     }
+    
+    // Check if we're on the game page
+    setIsGamePage(router.pathname === '/game')
     
     // Initial check
     checkOrientation()
@@ -68,12 +75,14 @@ export default function NavBar() {
       window.removeEventListener('resize', checkOrientation)
       window.removeEventListener('orientationchange', checkOrientation)
     }
-  }, [])
+  }, [router.pathname])
   
   // Close mobile menu when route changes
   useEffect(() => {
     const handleRouteChange = () => {
       setMobileMenuOpen(false)
+      // Check if we're on the game page after route change
+      setIsGamePage(router.pathname === '/game')
     }
     
     router.events.on('routeChangeComplete', handleRouteChange)
@@ -92,6 +101,31 @@ export default function NavBar() {
   const toggleMobileMenu = () => {
     playSound('click')
     setMobileMenuOpen(!mobileMenuOpen)
+  }
+  
+  // Handle logout with sound
+  const handleLogout = async () => {
+    try {
+      playSound('click')
+      setLoading(true)
+      
+      const auth = getAuthInstance()
+      if (!auth) {
+        console.error('Auth instance not available')
+        return
+      }
+      
+      await signOut(auth)
+      
+      // Redirect to home page after logout
+      router.push('/')
+    } catch (error) {
+      console.error('Error signing out:', error)
+      playSound('error')
+    } finally {
+      setLoading(false)
+      setMobileMenuOpen(false)
+    }
   }
 
   return (
@@ -183,7 +217,7 @@ export default function NavBar() {
                     router.pathname === link.href ? 'text-mathGreen' : 'text-white hover:text-mathGreen'
                   }`}
                   onClick={handleLinkClick}
-                  aria-current={router.pathname === link.href ? 'page' : undefined}
+                  aria-current={router.pathname === link.href ? "page" : undefined}
                 >
                   {link.icon && <span className="text-sm">{link.icon}</span>}
                   {link.label}
@@ -200,29 +234,46 @@ export default function NavBar() {
             ) : null
           ))}
 
-          {/* Donate Button */}
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8, type: 'spring', stiffness: 300 }}
-            whileHover={{
-              scale: 1.05,
-              backgroundColor: "#00FFCC",
-              color: "black",
-            }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <a
-              href="https://buymeacoffee.com/kevininmanz"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-mathGreen/20 border border-mathGreen text-mathGreen hover:text-black px-4 py-2 rounded-full font-bold text-sm transition flex items-center gap-1"
-              onClick={handleLinkClick}
+          {/* User Account / Donate Button section */}
+          <div className="flex items-center gap-3">
+            {/* Donate Button */}
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8, type: 'spring', stiffness: 300 }}
+              whileHover={{
+                scale: 1.05,
+                backgroundColor: "#00FFCC",
+                color: "black",
+              }}
+              whileTap={{ scale: 0.95 }}
             >
-              <span>Donate</span>
-              <span className="text-amber-400">💰</span>
-            </a>
-          </motion.div>
+              <a
+                href="https://buymeacoffee.com/kevininmanz"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-mathGreen/20 border border-mathGreen text-mathGreen hover:text-black px-4 py-2 rounded-full font-bold text-sm transition flex items-center gap-1"
+                onClick={handleLinkClick}
+              >
+                <span>Donate</span>
+                <span className="text-amber-400">💰</span>
+              </a>
+            </motion.div>
+            
+            {/* Logout Button (only if user is logged in) */}
+            {user && (
+              <motion.button
+                onClick={handleLogout}
+                disabled={loading}
+                className="bg-red-500/20 border border-red-500 text-red-400 hover:text-black hover:bg-red-500 px-4 py-2 rounded-full font-bold text-sm transition flex items-center gap-1"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <span>Logout</span>
+                <span>🚪</span>
+              </motion.button>
+            )}
+          </div>
         </div>
 
         {/* Mobile Navigation Menu */}
@@ -260,7 +311,7 @@ export default function NavBar() {
                         : 'text-white hover:text-mathGreen'
                     }`}
                     onClick={handleLinkClick}
-                    aria-current={router.pathname === link.href ? 'page' : undefined}
+                    aria-current={router.pathname === link.href ? "page" : undefined}
                   >
                     {link.icon && <span className="text-xl">{link.icon}</span>}
                     {link.label}
@@ -291,7 +342,7 @@ export default function NavBar() {
               </a>
             </motion.div>
             
-            {/* Login/Profile shortcut for mobile */}
+            {/* Login/Logout section for mobile */}
             {!user ? (
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
@@ -323,11 +374,8 @@ export default function NavBar() {
               >
                 <button 
                   className="block w-full py-3 px-2 text-lg font-medium transition duration-300 flex items-center gap-2 text-red-400"
-                  onClick={() => {
-                    playSound('click')
-                    // Implement logout functionality
-                    alert('Logout functionality to be implemented here')
-                  }}
+                  onClick={handleLogout}
+                  disabled={loading}
                 >
                   <span className="text-xl">🚪</span>
                   Logout
@@ -339,17 +387,17 @@ export default function NavBar() {
       </motion.nav>
       
       {/* Bottom Mobile Navigation Bar (Portrait orientation only) */}
-      {orientation === 'portrait' && (
+      {orientation === 'portrait' && !isGamePage && (
         <motion.div
-          className="md:hidden fixed bottom-0 left-0 right-0 bg-black bg-opacity-90 backdrop-blur-md z-50 px-2 py-2 border-t border-mathGreen/20 shadow-lg"
+          className="md:hidden fixed bottom-0 left-0 right-0 bg-black bg-opacity-90 backdrop-blur-md z-50 px-2 py-1 border-t border-mathGreen/20 shadow-lg"
           initial={{ y: 100 }}
           animate={{ y: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         >
           <div className="flex justify-between items-center">
-            {navLinks.map((link, index) => (
-              // Skip auth-required links when user not logged in
-              (!link.requiresAuth || user) ? (
+            {/* First row: Main navigation */}
+            <div className="flex justify-between w-full">
+              {navLinks.slice(0, 3).map((link, index) => (
                 <Link 
                   key={link.href}
                   href={link.href}
@@ -359,23 +407,42 @@ export default function NavBar() {
                       : 'text-white hover:text-mathGreen'
                   }`}
                   onClick={handleLinkClick}
-                  aria-current={router.pathname === link.href ? 'page' : undefined}
+                  aria-current={router.pathname === link.href ? "page" : undefined}
                 >
                   <span className="text-xl mb-1">{link.icon}</span>
                   <span className="text-xs font-medium">{link.label}</span>
-                  
-                  {/* Active indicator */}
-                  {router.pathname === link.href && (
-                    <motion.div 
-                      className="absolute -top-1 left-0 right-0 mx-auto w-1/2 h-0.5 bg-mathGreen rounded-full"
-                      layoutId="mobileActiveIndicator"
-                    />
-                  )}
                 </Link>
-              ) : null
-            ))}
+              ))}
+              
+              {/* Menu button on first row */}
+              <button
+                onClick={toggleMobileMenu}
+                className="flex flex-col items-center justify-center p-2 text-white hover:text-mathGreen"
+                aria-expanded={mobileMenuOpen}
+                aria-controls="mobile-menu"
+              >
+                <span className="text-xl mb-1">⋯</span>
+                <span className="text-xs font-medium">More</span>
+              </button>
+            </div>
           </div>
         </motion.div>
+      )}
+      
+      {/* Floating Menu Button for Game Page in Portrait Mode */}
+      {orientation === 'portrait' && isGamePage && (
+        <motion.button
+          className="md:hidden fixed bottom-4 right-4 w-14 h-14 rounded-full bg-mathGreen text-black z-50 shadow-lg flex items-center justify-center"
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+          onClick={toggleMobileMenu}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="mobile-menu"
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+        >
+          {mobileMenuOpen ? '✕' : '≡'}
+        </motion.button>
       )}
     </>
   )

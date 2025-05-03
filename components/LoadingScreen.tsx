@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
-import { playSound } from '@/lib/soundManager'
+import { playSound, initAudioContext } from '@/lib/soundManager'
 
 // Spooky image paths
 const spookyImages = [
@@ -15,127 +15,132 @@ const spookyImages = [
   '/pffy12.jpg',
 ]
 
-// Loading phrases for variety
-const loadingPhrases = [
-  "Escaping Diddy...",
-  "Calculating solutions...",
-  "Crunching numbers...",
-  "Preparing for math mayhem...",
-  "Compiling chaos..."
-]
-
 export default function LoadingScreen() {
   const [currentImage, setCurrentImage] = useState<string | null>(null)
-  const [loadingPhrase, setLoadingPhrase] = useState(loadingPhrases[0])
+  const [playingAudio, setPlayingAudio] = useState(false)
   const [audioInitialized, setAudioInitialized] = useState(false)
-  const [loadingProgress, setLoadingProgress] = useState(0)
-  const [imageLoaded, setImageLoaded] = useState(true)
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null)
 
-  // Function to show random flash image
-  const showRandomImage = useCallback(() => {
-    // Don't flash if another image is still loading
-    if (!imageLoaded) return
-    
-    const randomImage = spookyImages[Math.floor(Math.random() * spookyImages.length)]
-    setImageLoaded(false) // Set to false until new image loads
-    setCurrentImage(randomImage)
-    
-    // Hide image after a short delay
-    setTimeout(() => {
-      setCurrentImage(null)
-    }, 300)
-  }, [imageLoaded])
+  // Function to manually play audio after user interaction
+  const playLoadingAudio = useCallback(() => {
+    if (playingAudio || !audioElement) return;
 
-  // Flash random images occasionally
+    // First, initialize the audio context
+    initAudioContext();
+    
+    // Try to play the audio
+    audioElement.play()
+      .then(() => {
+        console.log('Loading audio playing successfully!');
+        setPlayingAudio(true);
+      })
+      .catch(err => {
+        console.error('Audio play error:', err);
+        // Try again with user interaction
+        const handleUserInteraction = () => {
+          audioElement.play()
+            .then(() => {
+              console.log('Loading audio now playing after user interaction');
+              setPlayingAudio(true);
+              document.removeEventListener('click', handleUserInteraction);
+            })
+            .catch(e => console.error('Still failed to play audio:', e));
+        };
+        
+        document.addEventListener('click', handleUserInteraction);
+      });
+  }, [playingAudio, audioElement]);
+
+  // Initialize audio element
+  useEffect(() => {
+    if (typeof window === 'undefined' || audioElement) return;
+    
+    // Create the audio element
+    const audio = new Audio('/sounds/everybyoutake.mp3');
+    audio.loop = false;
+    audio.volume = 0.2;
+    audio.preload = 'auto';
+    
+    // Store the audio element
+    setAudioElement(audio);
+    
+    // Set up audio event listeners
+    audio.addEventListener('ended', () => {
+      console.log('Audio ended naturally');
+      setPlayingAudio(false);
+    });
+    
+    // Set up cleanup
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.removeEventListener('ended', () => {
+        setPlayingAudio(false);
+      });
+    };
+  }, [audioElement]);
+
+  // Add click event listener to document for audio initialization
+  useEffect(() => {
+    if (!audioElement) return;
+    
+    const handleDocumentClick = () => {
+      if (!audioInitialized) {
+        setAudioInitialized(true);
+        playLoadingAudio();
+      }
+    };
+    
+    document.addEventListener('click', handleDocumentClick);
+    
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, [audioElement, audioInitialized, playLoadingAudio]);
+
+  // Set a timeout to stop the audio after 9 seconds
+  useEffect(() => {
+    if (!playingAudio || !audioElement) return;
+    
+    const stopTimeout = setTimeout(() => {
+      audioElement.pause();
+      audioElement.currentTime = 0;
+      setPlayingAudio(false);
+    }, 9000);
+    
+    return () => {
+      clearTimeout(stopTimeout);
+    };
+  }, [playingAudio, audioElement]);
+
+  // Flash random images
   useEffect(() => {
     const interval = setInterval(() => {
       if (Math.random() > 0.7) {
-        showRandomImage()
+        const randomImage = spookyImages[Math.floor(Math.random() * spookyImages.length)];
+        setCurrentImage(randomImage);
+        setTimeout(() => setCurrentImage(null), 300);
       }
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [showRandomImage])
-
-  // Rotate loading phrases
-  useEffect(() => {
-    const phrasesInterval = setInterval(() => {
-      const randomIndex = Math.floor(Math.random() * loadingPhrases.length)
-      setLoadingPhrase(loadingPhrases[randomIndex])
-    }, 2500)
+    }, 1000);
     
-    return () => clearInterval(phrasesInterval)
-  }, [])
-
-  // Simulate loading progress
-  useEffect(() => {
-    // Reset progress when component mounts
-    setLoadingProgress(0)
-    
-    const interval = setInterval(() => {
-      setLoadingProgress(prev => {
-        // Slow down progress as it approaches 100%
-        if (prev >= 95) {
-          return prev + 0.1
-        } else if (prev >= 80) {
-          return prev + 0.5
-        } else {
-          return prev + Math.random() * 5
-        }
-      })
-    }, 200)
-    
-    return () => clearInterval(interval)
-  }, [])
-
-  // Initialize audio when component mounts
-  useEffect(() => {
-    if (!audioInitialized) {
-      // Attempt to play audio using soundManager instead of direct Audio API
-      try {
-        playSound('everybyoutake')
-        setAudioInitialized(true)
-        
-        // Set up cleanup function to stop audio after 9 seconds
-        const stopTimer = setTimeout(() => {
-          // Stop the sound (this depends on your soundManager implementation)
-          // You might need to add a stopSound function to your soundManager
-        }, 9000)
-        
-        return () => clearTimeout(stopTimer)
-      } catch (err) {
-        console.error('Audio play error:', err)
-      }
-    }
-  }, [audioInitialized])
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div 
       className="flex flex-col justify-center items-center min-h-screen bg-black text-mathGreen relative overflow-hidden"
-      role="alert"
-      aria-live="polite"
-      aria-label="Loading screen"
+      onClick={() => {
+        if (!playingAudio && audioElement) {
+          playLoadingAudio();
+        }
+      }}
     >
-      {/* Background grid animation */}
-      <div className="absolute inset-0 bg-math-pattern opacity-20 animate-pulse"></div>
-      
-      {/* Progress bar */}
-      <div className="w-64 h-2 bg-gray-800 rounded-full overflow-hidden mb-8">
-        <motion.div 
-          className="h-full bg-mathGreen"
-          initial={{ width: "0%" }}
-          animate={{ width: `${Math.min(loadingProgress, 100)}%` }}
-          transition={{ ease: "easeOut" }}
-        />
-      </div>
-      
-      {/* Loading text */}
       <motion.h1
         className="text-4xl font-bold mb-4"
         animate={{ opacity: [0.5, 1, 0.5] }}
         transition={{ repeat: Infinity, duration: 2 }}
       >
-        {loadingPhrase}
+        Escaping Diddy...
       </motion.h1>
 
       <motion.p
@@ -145,25 +150,14 @@ export default function LoadingScreen() {
       >
         Math, Memes, Mayhem.
       </motion.p>
-      
-      {/* Loading dots */}
-      <div className="flex space-x-2 mt-4">
-        <motion.div 
-          className="w-3 h-3 rounded-full bg-mathGreen"
-          animate={{ scale: [0.5, 1, 0.5] }}
-          transition={{ repeat: Infinity, duration: 1, delay: 0 }}
-        />
-        <motion.div 
-          className="w-3 h-3 rounded-full bg-mathGreen"
-          animate={{ scale: [0.5, 1, 0.5] }}
-          transition={{ repeat: Infinity, duration: 1, delay: 0.2 }}
-        />
-        <motion.div 
-          className="w-3 h-3 rounded-full bg-mathGreen"
-          animate={{ scale: [0.5, 1, 0.5] }}
-          transition={{ repeat: Infinity, duration: 1, delay: 0.4 }}
-        />
-      </div>
+
+      {/* Audio play indicator (only during development) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="absolute bottom-4 left-4 text-xs text-gray-500">
+          Audio status: {playingAudio ? 'Playing' : 'Not playing'} 
+          {!playingAudio && !audioInitialized && ' (Click anywhere to enable audio)'}
+        </div>
+      )}
 
       {/* Diddy random flash */}
       <AnimatePresence>
@@ -178,13 +172,11 @@ export default function LoadingScreen() {
           >
             <Image 
               src={currentImage} 
-              alt="Loading visual" 
+              alt="Diddy Spook" 
               width={500} 
               height={500} 
-              className="object-contain" 
-              priority
-              onLoad={() => setImageLoaded(true)}
-              unoptimized={false}
+              className="object-contain"
+              priority 
             />
           </motion.div>
         )}
