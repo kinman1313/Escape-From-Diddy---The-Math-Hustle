@@ -4,7 +4,7 @@ import { useRouter } from 'next/router'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { AuthContext } from '@/components/AuthProvider'
-import { 
+import {
   getAuth,
   GoogleAuthProvider, 
   signInWithPopup, 
@@ -23,6 +23,7 @@ export default function LoginPage() {
   const router = useRouter()
   const { user } = useContext(AuthContext)
 
+  const [recaptchaWidgetId, setRecaptchaWidgetId] = useState<number | null>(null);
   const [clientReady, setClientReady] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -213,7 +214,7 @@ export default function LoginPage() {
     }
   }
 
-  const setupRecaptcha = () => {
+  const setupRecaptcha = async () => {
     try {
       const auth = getAuth()
       
@@ -245,7 +246,9 @@ export default function LoginPage() {
         }
       )
       
-      window.recaptchaVerifier.render()
+      // Pre-render the reCAPTCHA
+      const widgetId = await window.recaptchaVerifier.render();
+      setRecaptchaWidgetId(widgetId);
     } catch (err) {
       console.error('reCAPTCHA setup error:', err)
       setError('CAPTCHA setup failed. Please try another login method')
