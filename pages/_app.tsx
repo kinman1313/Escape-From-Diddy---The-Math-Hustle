@@ -14,6 +14,8 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="description" content="Math, Memes, and Mayhem. Escape from Diddy." />
         <link rel="icon" href="/favicon.ico" />
+        {/* Add the audio preload link here */}
+        <link rel="preload" href="/sounds/everybyoutake.mp3" as="audio" />
       </Head>
       <AuthProvider>
         <GameProvider>
