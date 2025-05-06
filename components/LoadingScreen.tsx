@@ -98,7 +98,7 @@ export default function LoadingScreen() {
     };
   }, [audioElement, audioInitialized, playLoadingAudio]);
 
-  // Set a timeout to stop the audio after 9 seconds
+  // Set a timeout to stop the audio after 8 seconds
   useEffect(() => {
     if (!playingAudio || !audioElement) return;
     
@@ -106,7 +106,7 @@ export default function LoadingScreen() {
       audioElement.pause();
       audioElement.currentTime = 0;
       setPlayingAudio(false);
-    }, 9000);
+    }, 8000);
     
     return () => {
       clearTimeout(stopTimeout);
@@ -168,7 +168,7 @@ export default function LoadingScreen() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.5 }}
           >
             <Image 
               src={currentImage} 
