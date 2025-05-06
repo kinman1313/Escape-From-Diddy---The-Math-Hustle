@@ -1,14 +1,12 @@
 // components/NavBar.tsx
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { useState, useEffect, useContext, useCallback } from 'react'
+import { useState, useEffect, useContext } from 'react'
 import { useRouter } from 'next/router'
 import { AuthContext } from './AuthProvider'
 import { playSound } from '@/lib/soundManager'
 import { signOut } from 'firebase/auth'
 import { getAuthInstance } from '@/lib/firebase'
-import { doc, getDoc } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
 
 // Define nav link interface for type safety
 interface NavLink {
@@ -16,10 +14,6 @@ interface NavLink {
   label: string;
   icon?: string;
   requiresAuth?: boolean;
-  gradient?: {
-    from: string;
-    to: string;
-  };
 }
 
 export default function NavBar() {
@@ -30,81 +24,15 @@ export default function NavBar() {
   const [orientation, setOrientation] = useState('portrait')
   const [loading, setLoading] = useState(false)
   const [isGamePage, setIsGamePage] = useState(false)
-  const [score, setScore] = useState(0)
   
-  // Define navigation links with gradient backgrounds
+  // Define navigation links with icons
   const navLinks: NavLink[] = [
-    { 
-      href: '/', 
-      label: 'Home', 
-      icon: '🏠',
-      gradient: { 
-        from: 'from-pink-500', 
-        to: 'to-purple-500' 
-      }
-    },
-    { 
-      href: '/game', 
-      label: 'Play', 
-      icon: '🎮',
-      gradient: { 
-        from: 'from-green-400', 
-        to: 'to-blue-500' 
-      }
-    },
-    { 
-      href: '/leaderboard', 
-      label: 'Leaderboard', 
-      icon: '🏆',
-      gradient: { 
-        from: 'from-yellow-400', 
-        to: 'to-red-500' 
-      }
-    },
-    { 
-      href: '/profile', 
-      label: 'Profile', 
-      icon: '👤', 
-      requiresAuth: true,
-      gradient: { 
-        from: 'from-indigo-500', 
-        to: 'to-purple-500' 
-      }
-    },
-    { 
-      href: '/closet', 
-      label: 'Closet', 
-      icon: '👕', 
-      requiresAuth: true,
-      gradient: { 
-        from: 'from-cyan-500', 
-        to: 'to-blue-500' 
-      }
-    },
+    { href: '/', label: 'Home', icon: '🏠' },
+    { href: '/game', label: 'Play', icon: '🎮' },
+    { href: '/leaderboard', label: 'Leaderboard', icon: '🏆' },
+    { href: '/profile', label: 'Profile', icon: '👤', requiresAuth: true },
+    { href: '/closet', label: 'Closet', icon: '👕', requiresAuth: true },
   ]
-  
-  // Fetch score from Firestore with error handling
-  const fetchScore = useCallback(async () => {
-    if (!user) return
-
-    try {
-      const docRef = doc(db, 'players', user.uid)
-      const docSnap = await getDoc(docRef)
-      
-      if (docSnap.exists()) {
-        const playerData = docSnap.data()
-        setScore(playerData.score || 0)
-      }
-    } catch (error) {
-      console.error('Error fetching score:', error)
-      playSound('error')
-    }
-  }, [user])
-  
-  // Fetch score on user change
-  useEffect(() => {
-    fetchScore()
-  }, [fetchScore])
   
   // Handle scroll events to change navbar appearance
   useEffect(() => {
@@ -164,29 +92,18 @@ export default function NavBar() {
     }
   }, [router])
   
-  // Handle link click with sound and optional vibration
+  // Handle link click with sound
   const handleLinkClick = () => {
     playSound('click')
-    
-    // Optional device vibration
-    if ('vibrate' in navigator) {
-      navigator.vibrate(30)
-    }
   }
   
-  // Toggle mobile menu with sound and vibration
+  // Toggle mobile menu with sound
   const toggleMobileMenu = () => {
     playSound('click')
-    
-    // Device vibration
-    if ('vibrate' in navigator) {
-      navigator.vibrate(50)
-    }
-    
     setMobileMenuOpen(!mobileMenuOpen)
   }
   
-  // Handle logout with enhanced error handling
+  // Handle logout with sound
   const handleLogout = async () => {
     try {
       playSound('click')
@@ -194,7 +111,8 @@ export default function NavBar() {
       
       const auth = getAuthInstance()
       if (!auth) {
-        throw new Error('Authentication not initialized')
+        console.error('Auth instance not available')
+        return
       }
       
       await signOut(auth)
@@ -202,41 +120,13 @@ export default function NavBar() {
       // Redirect to home page after logout
       router.push('/')
     } catch (error) {
-      console.error('Logout failed:', error)
+      console.error('Error signing out:', error)
       playSound('error')
     } finally {
       setLoading(false)
       setMobileMenuOpen(false)
     }
   }
-
-  // Animated Score Component
-  const AnimatedScore = () => (
-    <motion.div 
-      className="flex items-center space-x-2 bg-midnight/50 px-3 py-2 rounded-lg"
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 300 }}
-    >
-      <motion.span 
-        key={score}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 300 }}
-      >
-        🧮
-      </motion.span>
-      <motion.span 
-        key={`score-${score}`}
-        className="font-bold text-mathGreen"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 300 }}
-      >
-        {score}
-      </motion.span>
-    </motion.div>
-  )
 
   return (
     <>
@@ -250,31 +140,19 @@ export default function NavBar() {
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         aria-label="Main navigation"
       >
-        {/* Dynamic Background Glow */}
+        {/* Background animated glow */}
         <motion.div
           className="absolute inset-0 bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-cyan-400/20 opacity-30 blur-3xl"
           initial={{ opacity: 0 }}
-          animate={{ 
-            opacity: [0.1, 0.3, 0.1], 
-            rotate: [0, 360] 
-          }}
-          transition={{ 
-            duration: 5, 
-            repeat: Infinity, 
-            ease: "linear" 
-          }}
+          animate={{ opacity: 0.3 }}
+          transition={{ duration: 1.5 }}
         />
 
-        {/* Logo with Hover Effect */}
+        {/* Logo */}
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2, type: 'spring', stiffness: 300 }}
-          whileHover={{ 
-            scale: 1.05,
-            rotate: [0, -5, 5, 0],
-            transition: { duration: 0.3 }
-          }}
           className="relative z-10"
         >
           <Link 
@@ -356,9 +234,6 @@ export default function NavBar() {
             ) : null
           ))}
 
-          {/* Desktop Score Display */}
-          <AnimatedScore />
-
           {/* User Account / Donate Button section */}
           <div className="flex items-center gap-3">
             {/* Donate Button */}
@@ -402,120 +277,113 @@ export default function NavBar() {
         </div>
 
         {/* Mobile Navigation Menu */}
-        <AnimatePresence>
-          {mobileMenuOpen && (
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'tween' }}
-              className="fixed top-0 left-0 right-0 bottom-0 bg-black/95
-              backdrop-blur-lg z-50 overflow-y-auto"
-            >
-              <div className="container mx-auto px-4 py-8">
-                {/* Mobile Score Display */}
-                <div className="flex justify-center mb-6">
-                  <AnimatedScore />
-                </div>
-
-                {/* Mobile Navigation Links */}
-                {navLinks.map((link, index) => (
-                  (!link.requiresAuth || user) ? (
-                    <motion.div
-                      key={link.href}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ 
-                        opacity: 1, 
-                        x: 0 
-                      }}
-                      transition={{ 
-                        delay: 0.1 + index * 0.05,
-                        type: 'spring'
-                      }}
-                    >
-                      <Link 
-                        href={link.href}
-                        onClick={toggleMobileMenu}
-                        className={`block py-4 px-4 text-lg font-medium transition duration-300 flex items-center gap-4 rounded-lg ${
-                          router.pathname === link.href 
-                            ? 'bg-mathGreen/20 text-mathGreen' 
-                            : 'text-white hover:bg-white/10'
-                        }`}
-                      >
-                        {link.icon && <span className="text-2xl">{link.icon}</span>}
-                        {link.label}
-                      </Link>
-                    </motion.div>
-                  ) : null
-                ))}
-
-                {/* Mobile Donate Button */}
+        <motion.div
+          id="mobile-menu"
+          className={`absolute top-full left-0 right-0 bg-black bg-opacity-95 backdrop-blur-md z-50 overflow-hidden md:hidden transition-all duration-300 shadow-lg`}
+          initial={false}
+          animate={{
+            height: mobileMenuOpen ? 'auto' : 0,
+            opacity: mobileMenuOpen ? 1 : 0,
+          }}
+          style={{ 
+            pointerEvents: mobileMenuOpen ? 'auto' : 'none',
+            borderBottom: mobileMenuOpen ? '1px solid rgba(0, 255, 204, 0.2)' : 'none' 
+          }}
+        >
+          <div className="py-4 px-6 flex flex-col gap-4">
+            {navLinks.map((link, index) => (
+              // Skip auth-required links when user not logged in
+              (!link.requiresAuth || user) ? (
                 <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5, type: 'spring' }}
-                  className="mt-6"
+                  key={link.href}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ 
+                    opacity: mobileMenuOpen ? 1 : 0, 
+                    x: mobileMenuOpen ? 0 : -20 
+                  }}
+                  transition={{ delay: 0.1 + index * 0.05 }}
                 >
-                  <a
-                    href="https://buymeacoffee.com/kevininmanz"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full bg-mathGreen text-black py-4 rounded-lg text-center font-bold text-lg"
+                  <Link 
+                    href={link.href}
+                    className={`block py-3 px-2 text-lg font-medium transition duration-300 flex items-center gap-2 ${
+                      router.pathname === link.href 
+                        ? 'text-mathGreen border-l-2 border-mathGreen pl-4' 
+                        : 'text-white hover:text-mathGreen'
+                    }`}
                     onClick={handleLinkClick}
+                    aria-current={router.pathname === link.href ? "page" : undefined}
                   >
-                    Donate 💰
-                  </a>
+                    {link.icon && <span className="text-xl">{link.icon}</span>}
+                    {link.label}
+                  </Link>
                 </motion.div>
-
-                {/* Mobile Login/Logout Section */}
-                {!user ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6, type: 'spring' }}
-                    className="mt-4"
-                  >
-                    <Link 
-                      href="/login"
-                      onClick={toggleMobileMenu}
-                      className="block w-full bg-mathGreen/20 text-mathGreen py-4 rounded-lg text-center font-bold text-lg"
-                    >
-                      Login / Register 🔑
-                    </Link>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6, type: 'spring' }}
-                    className="mt-4"
-                  >
-                    <button 
-                      onClick={() => {
-                        handleLogout()
-                        toggleMobileMenu()
-                      }}
-                      className="block w-full bg-red-500/20 text-red-400 py-4 rounded-lg text-center font-bold text-lg"
-                    >
-                      Logout 🚪
-                    </button>
-                  </motion.div>
-                )}
-
-                {/* Close Menu Button */}
-                <motion.button
-                  onClick={toggleMobileMenu}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.7, type: 'spring' }}
-                  className="absolute top-4 right-4 text-mathGreen text-3xl"
-                >
-                  ✕
-                </motion.button>
-              </div>
+              ) : null
+            ))}
+            
+            {/* Mobile Donate Button */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ 
+                opacity: mobileMenuOpen ? 1 : 0, 
+                x: mobileMenuOpen ? 0 : -20 
+              }}
+              transition={{ delay: 0.1 + navLinks.length * 0.05 }}
+              className="mt-2"
+            >
+              <a
+                href="https://buymeacoffee.com/kevininmanz"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center bg-mathGreen text-black px-4 py-3 rounded-lg font-bold transition flex items-center justify-center gap-2"
+                onClick={handleLinkClick}
+              >
+                <span>Donate</span>
+                <span>💰</span>
+              </a>
             </motion.div>
-          )}
-        </AnimatePresence>
+            
+            {/* Login/Logout section for mobile */}
+            {!user ? (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ 
+                  opacity: mobileMenuOpen ? 1 : 0, 
+                  x: mobileMenuOpen ? 0 : -20 
+                }}
+                transition={{ delay: 0.1 + (navLinks.length + 1) * 0.05 }}
+                className="mt-4 pt-4 border-t border-white/10"
+              >
+                <Link 
+                  href="/login"
+                  className="block py-3 px-2 text-lg font-medium transition duration-300 flex items-center gap-2 text-mathGreen"
+                  onClick={handleLinkClick}
+                >
+                  <span className="text-xl">🔑</span>
+                  Login / Register
+                </Link>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ 
+                  opacity: mobileMenuOpen ? 1 : 0, 
+                  x: mobileMenuOpen ? 0 : -20 
+                }}
+                transition={{ delay: 0.1 + (navLinks.length + 1) * 0.05 }}
+                className="mt-4 pt-4 border-t border-white/10"
+              >
+                <button 
+                  className="block w-full py-3 px-2 text-lg font-medium transition duration-300 flex items-center gap-2 text-red-400"
+                  onClick={handleLogout}
+                  disabled={loading}
+                >
+                  <span className="text-xl">🚪</span>
+                  Logout
+                </button>
+              </motion.div>
+            )}
+          </div>
+        </motion.div>
       </motion.nav>
       
       {/* Bottom Mobile Navigation Bar (Portrait orientation only) */}
@@ -527,40 +395,35 @@ export default function NavBar() {
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         >
           <div className="flex justify-between items-center">
+            {/* First row: Main navigation */}
             <div className="flex justify-between w-full">
-              {navLinks.slice(0, 3).map((link) => (
-                <motion.div
+              {navLinks.slice(0, 3).map((link, index) => (
+                <Link 
                   key={link.href}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
+                  href={link.href}
+                  className={`flex flex-col items-center justify-center p-2 ${
+                    router.pathname === link.href 
+                      ? 'text-mathGreen' 
+                      : 'text-white hover:text-mathGreen'
+                  }`}
+                  onClick={handleLinkClick}
+                  aria-current={router.pathname === link.href ? "page" : undefined}
                 >
-                  <Link 
-                    href={link.href}
-                    className={`flex flex-col items-center justify-center p-2 ${
-                      router.pathname === link.href 
-                        ? 'text-mathGreen' 
-                        : 'text-white hover:text-mathGreen'
-                    }`}
-                    onClick={handleLinkClick}
-                  >
-                    <span className="text-xl mb-1">{link.icon}</span>
-                    <span className="text-xs font-medium">{link.label}</span>
-                  </Link>
-                </motion.div>
+                  <span className="text-xl mb-1">{link.icon}</span>
+                  <span className="text-xs font-medium">{link.label}</span>
+                </Link>
               ))}
               
               {/* Menu button on first row */}
-              <motion.button
+              <button
                 onClick={toggleMobileMenu}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
                 className="flex flex-col items-center justify-center p-2 text-white hover:text-mathGreen"
                 aria-expanded={mobileMenuOpen}
                 aria-controls="mobile-menu"
               >
                 <span className="text-xl mb-1">⋯</span>
                 <span className="text-xs font-medium">More</span>
-              </motion.button>
+              </button>
             </div>
           </div>
         </motion.div>
@@ -570,12 +433,10 @@ export default function NavBar() {
       {orientation === 'portrait' && isGamePage && (
         <motion.button
           className="md:hidden fixed bottom-4 right-4 w-14 h-14 rounded-full bg-mathGreen text-black z-50 shadow-lg flex items-center justify-center"
-          initial={{ scale: 0, rotate: -180 }}
-          animate={{ scale: 1, rotate: 0 }}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
           transition={{ type: 'spring', stiffness: 300, damping: 15 }}
           onClick={toggleMobileMenu}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
           aria-expanded={mobileMenuOpen}
           aria-controls="mobile-menu"
           aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
