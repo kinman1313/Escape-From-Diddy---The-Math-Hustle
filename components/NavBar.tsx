@@ -32,7 +32,7 @@ export default function NavBar() {
   const [isGamePage, setIsGamePage] = useState(false)
   const [score, setScore] = useState(0)
   
-  // Enhanced navigation links with gradient backgrounds
+  // Define navigation links with gradient backgrounds
   const navLinks: NavLink[] = [
     { 
       href: '/', 
@@ -83,7 +83,7 @@ export default function NavBar() {
     },
   ]
   
-  // Fetch score with enhanced error handling
+  // Fetch score from Firestore with error handling
   const fetchScore = useCallback(async () => {
     if (!user) return
 
@@ -97,7 +97,6 @@ export default function NavBar() {
       }
     } catch (error) {
       console.error('Error fetching score:', error)
-      // Optional: Add a toast or error notification
       playSound('error')
     }
   }, [user])
@@ -107,7 +106,7 @@ export default function NavBar() {
     fetchScore()
   }, [fetchScore])
   
-  // Scroll and orientation detection effects remain the same
+  // Handle scroll events to change navbar appearance
   useEffect(() => {
     const handleScroll = () => {
       const isScrolled = window.scrollY > 10
@@ -117,9 +116,13 @@ export default function NavBar() {
     }
     
     window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
   }, [scrolled])
   
+  // Monitor orientation changes and check if we're on the game page
   useEffect(() => {
     const checkOrientation = () => {
       if (typeof window !== 'undefined') {
@@ -161,16 +164,21 @@ export default function NavBar() {
     }
   }, [router])
   
-  // Handle link click with sound and visual feedback
+  // Handle link click with sound and optional vibration
   const handleLinkClick = () => {
     playSound('click')
+    
+    // Optional device vibration
+    if ('vibrate' in navigator) {
+      navigator.vibrate(30)
+    }
   }
   
   // Toggle mobile menu with sound and vibration
   const toggleMobileMenu = () => {
     playSound('click')
     
-    // Optional: Add device vibration for tactile feedback
+    // Device vibration
     if ('vibrate' in navigator) {
       navigator.vibrate(50)
     }
@@ -196,15 +204,13 @@ export default function NavBar() {
     } catch (error) {
       console.error('Logout failed:', error)
       playSound('error')
-      
-      // Optional: Add error toast or notification
     } finally {
       setLoading(false)
       setMobileMenuOpen(false)
     }
   }
 
-  // Animated score display
+  // Animated Score Component
   const AnimatedScore = () => (
     <motion.div 
       className="flex items-center space-x-2 bg-midnight/50 px-3 py-2 rounded-lg"
@@ -282,31 +288,230 @@ export default function NavBar() {
           </Link>
         </motion.div>
 
-        {/* Rest of the implementation remains largely the same */}
-        {/* Mobile menu button and desktop navigation links */}
-        
-        {/* Desktop Score and Buttons Section */}
-        <div className="hidden md:flex items-center gap-4">
+        {/* Mobile menu button */}
+        <div className="md:hidden relative z-10">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={toggleMobileMenu}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-menu"
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            className="p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-mathGreen"
+          >
+            <div className="w-6 h-0.5 bg-white mb-1.5 transform transition-all duration-300 
+              ease-in-out" style={{ 
+                transform: mobileMenuOpen ? 'rotate(45deg) translate(5px, 5px)' : '',
+                backgroundColor: mobileMenuOpen ? '#00ffcc' : 'white' 
+              }}></div>
+            <div className="w-6 h-0.5 bg-white mb-1.5 transform transition-all duration-300 
+              ease-in-out" style={{ 
+                opacity: mobileMenuOpen ? 0 : 1,
+                backgroundColor: mobileMenuOpen ? '#00ffcc' : 'white' 
+              }}></div>
+            <div className="w-6 h-0.5 bg-white transform transition-all duration-300 
+              ease-in-out" style={{ 
+                transform: mobileMenuOpen ? 'rotate(-45deg) translate(5px, -5px)' : '',
+                backgroundColor: mobileMenuOpen ? '#00ffcc' : 'white' 
+              }}></div>
+          </motion.button>
+        </div>
+
+        {/* Desktop Navigation Links */}
+        <div className="hidden md:flex items-center justify-end flex-1 gap-8 relative z-10">
+          {navLinks.map((link, index) => (
+            // Skip auth-required links when user not logged in
+            (!link.requiresAuth || user) ? (
+              <motion.div
+                key={link.href}
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 + index * 0.1, type: 'spring', stiffness: 300 }}
+                whileHover={{
+                  scale: 1.1,
+                  color: "#00FFCC"
+                }}
+                whileTap={{ scale: 0.95 }}
+                className="relative"
+              >
+                <Link 
+                  href={link.href}
+                  className={`text-lg font-medium transition duration-300 flex items-center gap-1.5 ${
+                    router.pathname === link.href ? 'text-mathGreen' : 'text-white hover:text-mathGreen'
+                  }`}
+                  onClick={handleLinkClick}
+                  aria-current={router.pathname === link.href ? "page" : undefined}
+                >
+                  {link.icon && <span className="text-sm">{link.icon}</span>}
+                  {link.label}
+                </Link>
+                
+                {/* Active indicator */}
+                {router.pathname === link.href && (
+                  <motion.div 
+                    className="absolute -bottom-1 left-0 right-0 h-0.5 bg-mathGreen rounded"
+                    layoutId="activeIndicator"
+                  />
+                )}
+              </motion.div>
+            ) : null
+          ))}
+
+          {/* Desktop Score Display */}
           <AnimatedScore />
-          {/* Existing donate and logout buttons */}
+
+          {/* User Account / Donate Button section */}
+          <div className="flex items-center gap-3">
+            {/* Donate Button */}
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.8, type: 'spring', stiffness: 300 }}
+              whileHover={{
+                scale: 1.05,
+                backgroundColor: "#00FFCC",
+                color: "black",
+              }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <a
+                href="https://buymeacoffee.com/kevininmanz"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-mathGreen/20 border border-mathGreen text-mathGreen hover:text-black px-4 py-2 rounded-full font-bold text-sm transition flex items-center gap-1"
+                onClick={handleLinkClick}
+              >
+                <span>Donate</span>
+                <span className="text-amber-400">💰</span>
+              </a>
+            </motion.div>
+            
+            {/* Logout Button (only if user is logged in) */}
+            {user && (
+              <motion.button
+                onClick={handleLogout}
+                disabled={loading}
+                className="bg-red-500/20 border border-red-500 text-red-400 hover:text-black hover:bg-red-500 px-4 py-2 rounded-full font-bold text-sm transition flex items-center gap-1"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <span>Logout</span>
+                <span>🚪</span>
+              </motion.button>
+            )}
+          </div>
         </div>
 
         {/* Mobile Navigation Menu */}
         <AnimatePresence>
           {mobileMenuOpen && (
             <motion.div
-              initial={{ opacity: 0, y: -50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -50 }}
-              className="absolute top-full left-0 right-0 bg-black/95 backdrop-blur-lg z-50"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'tween' }}
+              className="fixed top-0 left-0 right-0 bottom-0 bg-black/95
+              backdrop-blur-lg z-50 overflow-y-auto"
             >
-              {/* Mobile menu content */}
-              <div className="container mx-auto px-4 py-6">
+              <div className="container mx-auto px-4 py-8">
+                {/* Mobile Score Display */}
                 <div className="flex justify-center mb-6">
                   <AnimatedScore />
                 </div>
-                
-                {/* Rest of mobile menu remains the same */}
+
+                {/* Mobile Navigation Links */}
+                {navLinks.map((link, index) => (
+                  (!link.requiresAuth || user) ? (
+                    <motion.div
+                      key={link.href}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ 
+                        opacity: 1, 
+                        x: 0 
+                      }}
+                      transition={{ 
+                        delay: 0.1 + index * 0.05,
+                        type: 'spring'
+                      }}
+                    >
+                      <Link 
+                        href={link.href}
+                        onClick={toggleMobileMenu}
+                        className={`block py-4 px-4 text-lg font-medium transition duration-300 flex items-center gap-4 rounded-lg ${
+                          router.pathname === link.href 
+                            ? 'bg-mathGreen/20 text-mathGreen' 
+                            : 'text-white hover:bg-white/10'
+                        }`}
+                      >
+                        {link.icon && <span className="text-2xl">{link.icon}</span>}
+                        {link.label}
+                      </Link>
+                    </motion.div>
+                  ) : null
+                ))}
+
+                {/* Mobile Donate Button */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5, type: 'spring' }}
+                  className="mt-6"
+                >
+                  <a
+                    href="https://buymeacoffee.com/kevininmanz"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full bg-mathGreen text-black py-4 rounded-lg text-center font-bold text-lg"
+                    onClick={handleLinkClick}
+                  >
+                    Donate 💰
+                  </a>
+                </motion.div>
+
+                {/* Mobile Login/Logout Section */}
+                {!user ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6, type: 'spring' }}
+                    className="mt-4"
+                  >
+                    <Link 
+                      href="/login"
+                      onClick={toggleMobileMenu}
+                      className="block w-full bg-mathGreen/20 text-mathGreen py-4 rounded-lg text-center font-bold text-lg"
+                    >
+                      Login / Register 🔑
+                    </Link>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6, type: 'spring' }}
+                    className="mt-4"
+                  >
+                    <button 
+                      onClick={() => {
+                        handleLogout()
+                        toggleMobileMenu()
+                      }}
+                      className="block w-full bg-red-500/20 text-red-400 py-4 rounded-lg text-center font-bold text-lg"
+                    >
+                      Logout 🚪
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* Close Menu Button */}
+                <motion.button
+                  onClick={toggleMobileMenu}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.7, type: 'spring' }}
+                  className="absolute top-4 right-4 text-mathGreen text-3xl"
+                >
+                  ✕
+                </motion.button>
               </div>
             </motion.div>
           )}
@@ -323,7 +528,7 @@ export default function NavBar() {
         >
           <div className="flex justify-between items-center">
             <div className="flex justify-between w-full">
-              {navLinks.slice(0, 3).map((link, index) => (
+              {navLinks.slice(0, 3).map((link) => (
                 <motion.div
                   key={link.href}
                   whileHover={{ scale: 1.1 }}
@@ -337,7 +542,6 @@ export default function NavBar() {
                         : 'text-white hover:text-mathGreen'
                     }`}
                     onClick={handleLinkClick}
-                    aria-current={router.pathname === link.href ? "page" : undefined}
                   >
                     <span className="text-xl mb-1">{link.icon}</span>
                     <span className="text-xs font-medium">{link.label}</span>
@@ -345,7 +549,7 @@ export default function NavBar() {
                 </motion.div>
               ))}
               
-              {/* Menu button with more interactive design */}
+              {/* Menu button on first row */}
               <motion.button
                 onClick={toggleMobileMenu}
                 whileHover={{ scale: 1.1 }}
