@@ -44,6 +44,7 @@
   max-width: 450px;
   background-color: rgba(3, 10, 28, 0.9);
   border-radius: 1rem;
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   z-index: 10;
   position: relative;
