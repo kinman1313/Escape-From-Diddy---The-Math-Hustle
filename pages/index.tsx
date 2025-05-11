@@ -33,7 +33,7 @@ const spookyImages = [
   '/diddycoat.jpg',
   '/dididdy.jpg',
   '/pffy12.jpg',
-]
+]  
 
 // Available avatars for selection
 const avatars = [
